@@ -1,0 +1,98 @@
+diff --git a/src/gplaydl.cpp b/src/gplaydl.cpp
+index 2db9016..e01df82 100644
+--- a/src/gplaydl.cpp
++++ b/src/gplaydl.cpp
+@@ -13,6 +13,8 @@ struct playapi_cli_downloader : playapi_cli_base {
+     std::string opt_app;
+     int opt_app_version = -1;
+     std::string opt_app_output;
++    long long opt_total_download_size = 0;
++    long long opt_completed_download_size = 0;
+ 
+     bool parse_arg(arg_list &list, const char *key) override;
+ 
+@@ -25,9 +27,11 @@ struct playapi_cli_downloader : playapi_cli_base {
+         std::cout << "-o   --output           Specify the output file name" << std::endl;;
+     }
+ 
++    template<typename T> long long component_size(T const& dd);
++
+     template<typename T> void download_component(T const& dd, ::playapi::proto::finsky::HttpCookie cookie, std::string component);
+ 
+-    void download_file(http_request &req, std::string file_name, bool gzipped);
++    void download_file(http_request &req, std::string file_name, bool gzipped, long long component_size);
+ 
+     void run();
+ 
+@@ -89,16 +93,32 @@ void playapi_cli_downloader::run() {
+         auto resp = api.delivery(opt_app, opt_app_version, std::string())->call();
+         auto dd = resp.payload().deliveryresponse().appdeliverydata();
+ 
++        opt_completed_download_size = 0;
++        opt_total_download_size = component_size(dd);
++        for(auto && data : dd.splitdeliverydata()) {
++            opt_total_download_size += component_size(data);
++        }
++
+         download_component(dd, dd.downloadauthcookie(0), "");
+ 
+         for(auto && data : dd.splitdeliverydata()) {
+             download_component(data, dd.downloadauthcookie(0), data.id());
+         }
++        std::cout << std::endl;
+     }
+ }
+ 
++template<typename T> long long playapi_cli_downloader::component_size(T const& dd) {
++    if (dd.has_gzippeddownloadsize())
++        return dd.gzippeddownloadsize();
++    if (dd.has_downloadsize())
++        return dd.downloadsize();
++    return 0;
++}
++
+ template<typename T> void playapi_cli_downloader::download_component(T const& dd, ::playapi::proto::finsky::HttpCookie cookie, std::string component) {
+     http_request req(dd.has_gzippeddownloadurl() ? dd.gzippeddownloadurl() : dd.downloadurl());
++    long long expected_size = component_size(dd);
+     req.add_header("Accept-Encoding", "identity");
+     req.add_header("Cookie", cookie.name() + "=" + cookie.value());
+     req.set_user_agent("AndroidDownloadManager/" + device.build_version_string + " (Linux; U; Android " +
+@@ -113,10 +133,12 @@ template<typename T> void playapi_cli_downloader::download_component(T const& dd
+         file_name.insert(file_name.find_last_of('.'), "." + component);
+     }
+ 
+-    download_file(req, file_name, dd.has_gzippeddownloadurl());
++    download_file(req, file_name, dd.has_gzippeddownloadurl(), expected_size);
++    if (expected_size > 0)
++        opt_completed_download_size += expected_size;
+ }
+ 
+-void playapi_cli_downloader::download_file(http_request &req, std::string file_name, bool gzipped) {
++void playapi_cli_downloader::download_file(http_request &req, std::string file_name, bool gzipped, long long component_size) {
+     if (gzipped)
+         req.set_encoding("gzip,deflate");
+     req.set_timeout(0L);
+@@ -142,10 +164,19 @@ void playapi_cli_downloader::download_file(http_request &req, std::string file_n
+         });
+     }
+ 
+-    req.set_progress_callback([&req](curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
+-        if (dltotal > 0) {
+-            printf("\rDownloaded %i%% [%lli/%lli MiB]", (int) (dlnow * 100 / dltotal), dlnow / 1024 / 1024,
+-                   dltotal / 1024 / 1024);
++    req.set_progress_callback([this, component_size](curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
++        long long current_total = component_size > 0 ? component_size : (long long) dltotal;
++        long long aggregate_total = opt_total_download_size > 0 ? opt_total_download_size : current_total;
++        long long aggregate_now = opt_completed_download_size + (long long) dlnow;
++        if (aggregate_total > 0) {
++            long long aggregate_now_mib = aggregate_now / 1024 / 1024;
++            long long aggregate_total_mib = aggregate_total / 1024 / 1024;
++            if (aggregate_total_mib == 0)
++                aggregate_total_mib = 1;
++            if (aggregate_now_mib > aggregate_total_mib)
++                aggregate_now_mib = aggregate_total_mib;
++            printf("\rDownloaded %i%% [%lli/%lli MiB]", (int) (aggregate_now * 100 / aggregate_total),
++                   aggregate_now_mib, aggregate_total_mib);
+             std::cout.flush();
+         }
+     });

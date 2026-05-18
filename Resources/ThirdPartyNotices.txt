@@ -1,0 +1,35 @@
+Minecraft Bedrock Launcher
+Third-Party Notices
+
+Minecraft Bedrock Launcher source code is licensed under the MIT License.
+
+Third-party components retain their original licenses.
+
+Bundled components:
+
+- Sparkle
+  Update framework for macOS.
+  License: MIT-style license with bundled third-party notices.
+  Upstream: https://github.com/sparkle-project/Sparkle
+
+- Google-Play-API tools (gplayver, gplaydl)
+  Google Play version lookup and APK download helpers.
+  License: Apache License 2.0.
+  Upstream: https://github.com/minecraft-linux/Google-Play-API
+
+Downloaded components:
+
+- mcpelauncher runtime
+  Downloaded separately by the launcher.
+  License: GPL-3.0.
+  Upstream: https://github.com/minecraft-linux/mcpelauncher-manifest
+
+- mcpelauncher compatibility patches
+  Downloaded separately when needed.
+  Upstream: https://github.com/minecraft-linux/mcpelauncher-moddb
+
+Release app bundles produced by this repository do not include the
+mcpelauncher runtime.
+
+Full license texts for bundled components are included in the app bundle when
+available at build time under Contents/Resources/Licenses.

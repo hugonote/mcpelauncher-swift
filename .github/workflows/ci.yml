@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  swift:
+    name: Swift build and tests
+    runs-on: macos-26
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build launcher
+        run: swift build -c release --product MinecraftBedrockLauncher
+
+      - name: Build credentials helper
+        run: swift build -c release --product mcpelauncher-ui-qt
+
+      - name: Install Google Play API build tools
+        run: brew install cmake protobuf abseil
+
+      - name: Build Google Play API tools
+        run: Scripts/build-google-play-tools.sh
+
+      - name: Build app bundle
+        env:
+          GPLAYVER_PATH: .build/google-play-api-build/gplayver
+          GPLAYDL_PATH: .build/google-play-api-build/gplaydl
+          CODESIGN_IDENTITY: skip
+        run: Scripts/build-app-bundle.sh
+
+      - name: Verify app resources
+        run: test -f ".build/app/Minecraft Bedrock Launcher.app/Contents/Resources/cut-bedrock-launcher-icon-foreground-transparent.png"

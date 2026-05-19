@@ -8,8 +8,10 @@ struct ContentView: View {
     @State private var isShowingSignOutConfirmation = false
     @State private var isShowingVersionInfo = false
     @State private var isStartupComplete = false
+    @State private var isTitleIconVisible = false
     @State private var window: NSWindow?
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -82,6 +84,32 @@ struct ContentView: View {
         DockProgressController.shared.update(downloadState: model.downloadState, runtimeState: model.runtimeState)
     }
 
+    private func playTitleIconEntranceIfNeeded() {
+        guard isStartupComplete else {
+            return
+        }
+        guard !isTitleIconVisible else {
+            return
+        }
+        if reduceMotion {
+            isTitleIconVisible = true
+            return
+        }
+
+        let animation = Animation.interpolatingSpring(
+            mass: 0.42,
+            stiffness: 190,
+            damping: 9.5,
+            initialVelocity: 5
+        )
+
+        DispatchQueue.main.async {
+            withAnimation(animation) {
+                isTitleIconVisible = true
+            }
+        }
+    }
+
     private var accountBar: some View {
         HStack(spacing: 10) {
             Spacer(minLength: 104)
@@ -115,7 +143,17 @@ struct ContentView: View {
     private var titleBlock: some View {
         VStack(spacing: 10) {
             titleIcon
-                .primaryIconBounce(id: titleIconBounceID)
+                .scaleEffect(isTitleIconVisible || reduceMotion ? 1 : 0.72)
+                .opacity(isTitleIconVisible || reduceMotion ? 1 : 0)
+                .onAppear {
+                    playTitleIconEntranceIfNeeded()
+                }
+                .onChange(of: isStartupComplete) { _, isComplete in
+                    guard isComplete else {
+                        return
+                    }
+                    playTitleIconEntranceIfNeeded()
+                }
                 .accessibilityHidden(true)
 
             VStack(spacing: 3) {
@@ -676,10 +714,6 @@ struct ContentView: View {
             return "cpu"
         }
         return "cube.fill"
-    }
-
-    private var titleIconBounceID: String {
-        shouldUseBedrockIcon ? "bedrock-icon" : titleIconName
     }
 
     private var shouldUseBedrockIcon: Bool {

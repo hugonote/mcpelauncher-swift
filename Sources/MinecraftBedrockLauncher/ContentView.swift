@@ -449,11 +449,13 @@ struct ContentView: View {
                     if model.canSkipRuntimeUpdateCheck {
                         runtimeSkipProgress
                     } else {
-                        progressText(primary: runtimeProgressText, secondary: runtimeSecondaryProgressText)
+                        runtimeCancelableProgressText
                     }
                 } else {
                     if model.canSkipRuntimeUpdateCheck {
                         runtimeSkipProgress
+                    } else if model.runtimeState.phase == .downloading {
+                        runtimeCancelableInlineProgress
                     } else {
                         inlineProgressText(primary: runtimeProgressText, secondary: runtimeSecondaryProgressText)
                     }
@@ -479,6 +481,31 @@ struct ContentView: View {
         }
         .frame(height: 31)
         .frame(maxWidth: .infinity)
+    }
+
+    private var runtimeCancelableProgressText: some View {
+        HStack(spacing: 8) {
+            progressText(primary: runtimeProgressText, secondary: runtimeSecondaryProgressText)
+            runtimeCancelButton
+        }
+    }
+
+    private var runtimeCancelableInlineProgress: some View {
+        HStack(spacing: 8) {
+            inlineProgressText(primary: runtimeProgressText, secondary: runtimeSecondaryProgressText)
+            runtimeCancelButton
+        }
+    }
+
+    private var runtimeCancelButton: some View {
+        Button {
+            model.cancelRuntimeDownload()
+        } label: {
+            Image(systemName: "xmark")
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .help("Cancel runtime download")
     }
 
     private func inlineProgressText(primary: String, secondary: String? = nil, height: CGFloat = 31) -> some View {

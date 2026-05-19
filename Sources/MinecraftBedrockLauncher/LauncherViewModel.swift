@@ -382,6 +382,32 @@ final class LauncherViewModel: ObservableObject {
         statusText = "Download canceled."
     }
 
+    func cancelRuntimeDownload() {
+        guard runtimeState.phase == .downloading else {
+            return
+        }
+        activeRuntimeUpdateID = nil
+        runtimeUpdateTask?.cancel()
+        runtimeUpdateTask = nil
+        runtimeSkipDelayTask?.cancel()
+        runtimeSkipDelayTask = nil
+        canSkipRuntimeUpdateCheck = false
+        lastRuntimeProgressUpdate = nil
+
+        let manager = RuntimeManager(paths: paths, processRunner: processRunner)
+        if let state = installedRuntimeState(
+            using: manager,
+            fallbackDetail: "Using installed runtime; runtime download canceled."
+        ) {
+            runtimeState = state
+        } else {
+            runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
+        }
+        errorText = nil
+        updateWarningText = nil
+        statusText = "Runtime download canceled."
+    }
+
     private func downloadAndInstallLatest(downloadID: UUID) async {
         do {
             errorText = nil
@@ -738,7 +764,8 @@ final class LauncherViewModel: ObservableObject {
                     return
                 }
                 await MainActor.run {
-                    guard self?.activeRuntimeUpdateID == updateID else {
+                    guard self?.activeRuntimeUpdateID == updateID,
+                          self?.runtimeState.phase == .checking else {
                         return
                     }
                     self?.canSkipRuntimeUpdateCheck = true
@@ -817,6 +844,9 @@ final class LauncherViewModel: ObservableObject {
         guard shouldPublishRuntimeProgress(progress) else {
             return
         }
+        canSkipRuntimeUpdateCheck = false
+        runtimeSkipDelayTask?.cancel()
+        runtimeSkipDelayTask = nil
         let fraction = progress.fractionCompleted
         let progressValue = fraction > 0 ? min(max(fraction, 0.02), 1) : runtimeState.progress
         let isComplete = progress.totalBytes.map { $0 > 0 && progress.bytesReceived >= $0 } ?? false

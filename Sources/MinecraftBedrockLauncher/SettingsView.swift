@@ -13,6 +13,9 @@ struct SettingsView: View {
     @AppStorage(LauncherPreferences.automaticallyCheckLauncherUpdatesKey)
     private var automaticallyCheckLauncherUpdates = true
 
+    @AppStorage(LauncherPreferences.showInGameStatusBarKey)
+    private var showInGameStatusBar = false
+
     @State private var pendingDeleteAction: DeleteAction?
     @State private var completedAction: DeleteAction?
 
@@ -42,6 +45,21 @@ struct SettingsView: View {
                         subtitle: "Keep this app current",
                         systemImage: "arrow.down.app",
                         isOn: $automaticallyCheckLauncherUpdates
+                    )
+                }
+                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Game")
+                    .font(.headline)
+
+                VStack(spacing: 0) {
+                    ToggleRow(
+                        title: "Status Bar",
+                        subtitle: "Show runtime controls in Minecraft",
+                        systemImage: "menubar.rectangle",
+                        isOn: $showInGameStatusBar
                     )
                 }
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))

@@ -117,6 +117,7 @@ final class LauncherViewModel: ObservableObject {
     func load() async {
         do {
             try paths.ensureDirectories()
+            try syncRuntimeClientPreferencesFromDisk()
             installedVersions = try registry.load()
             selectedVersion = installedVersions.first
             refreshSelectedVersionCompatibility()
@@ -503,6 +504,7 @@ final class LauncherViewModel: ObservableObject {
                 let dataPath = paths.minecraftDataURL
                 let cachePath = paths.minecraftCacheURL
                 let warmUpLogURL = firstLaunchWarmUpLogURL(for: installed)
+                try applyRuntimeClientPreferences(dataPath: dataPath)
                 _ = try await runOffMain {
                     try RuntimeLauncher().warmUpFirstLaunch(
                         runtimePath: runtimePath,
@@ -570,6 +572,7 @@ final class LauncherViewModel: ObservableObject {
             let logURL = launchLogURL(for: selectedVersion)
             let dataPath = paths.minecraftDataURL
             let cachePath = paths.minecraftCacheURL
+            try applyRuntimeClientPreferences(dataPath: dataPath)
             try await runOffMain {
                 try launcher.launchDetached(
                     runtimePath: runtimePath,
@@ -590,6 +593,19 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    private func applyRuntimeClientPreferences(dataPath: URL) throws {
+        try RuntimeClientSettingsStore().setInGameStatusBarEnabled(
+            LauncherPreferences.showInGameStatusBar,
+            dataPath: dataPath
+        )
+    }
+
+    private func syncRuntimeClientPreferencesFromDisk() throws {
+        guard let isEnabled = try RuntimeClientSettingsStore().inGameStatusBarEnabled(dataPath: paths.minecraftDataURL) else {
+            return
+        }
+        UserDefaults.standard.set(isEnabled, forKey: LauncherPreferences.showInGameStatusBarKey)
+    }
     private func loadStoredCredentialIfNeeded() throws -> GoogleCredential? {
         if let credential {
             return credential

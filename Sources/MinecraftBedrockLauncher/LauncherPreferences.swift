@@ -4,12 +4,14 @@ enum LauncherPreferences {
     static let automaticallyCheckRuntimeUpdatesKey = "automaticallyCheckRuntimeUpdates"
     static let automaticallyCheckGameUpdatesKey = "automaticallyCheckGameUpdates"
     static let automaticallyCheckLauncherUpdatesKey = "automaticallyCheckLauncherUpdates"
+    static let showInGameStatusBarKey = "showInGameStatusBar"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
             automaticallyCheckRuntimeUpdatesKey: true,
             automaticallyCheckGameUpdatesKey: true,
-            automaticallyCheckLauncherUpdatesKey: true
+            automaticallyCheckLauncherUpdatesKey: true,
+            showInGameStatusBarKey: false
         ])
     }
 
@@ -23,5 +25,9 @@ enum LauncherPreferences {
 
     static var automaticallyCheckLauncherUpdates: Bool {
         UserDefaults.standard.bool(forKey: automaticallyCheckLauncherUpdatesKey)
+    }
+
+    static var showInGameStatusBar: Bool {
+        UserDefaults.standard.bool(forKey: showInGameStatusBarKey)
     }
 }

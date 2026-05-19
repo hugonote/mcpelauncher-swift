@@ -663,17 +663,32 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func applyRuntimeClientPreferences(dataPath: URL) throws {
-        try RuntimeClientSettingsStore().setInGameStatusBarEnabled(
+        let settingsStore = RuntimeClientSettingsStore()
+        try settingsStore.setInGameStatusBarEnabled(
             LauncherPreferences.showInGameStatusBar,
+            dataPath: dataPath
+        )
+        try settingsStore.setFPSHUDVisibility(
+            LauncherPreferences.fpsCounterVisibility,
+            dataPath: dataPath
+        )
+        try settingsStore.setVSyncEnabled(
+            LauncherPreferences.vSyncEnabled,
             dataPath: dataPath
         )
     }
 
     private func syncRuntimeClientPreferencesFromDisk() throws {
-        guard let isEnabled = try RuntimeClientSettingsStore().inGameStatusBarEnabled(dataPath: paths.minecraftDataURL) else {
-            return
+        let settingsStore = RuntimeClientSettingsStore()
+        if let isEnabled = try settingsStore.inGameStatusBarEnabled(dataPath: paths.minecraftDataURL) {
+            UserDefaults.standard.set(isEnabled, forKey: LauncherPreferences.showInGameStatusBarKey)
         }
-        UserDefaults.standard.set(isEnabled, forKey: LauncherPreferences.showInGameStatusBarKey)
+        if let fpsHUDVisibility = try settingsStore.fpsHUDVisibility(dataPath: paths.minecraftDataURL) {
+            UserDefaults.standard.set(fpsHUDVisibility.rawValue, forKey: LauncherPreferences.fpsCounterVisibilityKey)
+        }
+        if let vSyncEnabled = try settingsStore.vSyncEnabled(dataPath: paths.minecraftDataURL) {
+            UserDefaults.standard.set(vSyncEnabled, forKey: LauncherPreferences.vSyncEnabledKey)
+        }
     }
 
     private func loadStoredCredentialIfNeeded() throws -> GoogleCredential? {

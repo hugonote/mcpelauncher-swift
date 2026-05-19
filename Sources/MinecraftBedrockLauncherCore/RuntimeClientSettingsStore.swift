@@ -1,5 +1,11 @@
 import Foundation
 
+public enum RuntimeHUDVisibility: Int, CaseIterable, Sendable {
+    case off = 0
+    case always = 1
+    case inGame = 2
+}
+
 public struct RuntimeClientSettingsStore {
     public static let fileName = "mcpelauncher-client-settings.txt"
 
@@ -17,11 +23,52 @@ public struct RuntimeClientSettingsStore {
         try boolValue(for: "enable_menubar", dataPath: dataPath)
     }
 
+    public func setFPSHUDVisibility(_ visibility: RuntimeHUDVisibility, dataPath: URL) throws {
+        try set("enable_fps_hud", value: String(visibility.rawValue), dataPath: dataPath)
+    }
+
+    public func fpsHUDVisibility(dataPath: URL) throws -> RuntimeHUDVisibility? {
+        guard let rawValue = try intValue(for: "enable_fps_hud", dataPath: dataPath) else {
+            return nil
+        }
+        return RuntimeHUDVisibility(rawValue: rawValue)
+    }
+
+    public func setVSyncEnabled(_ isEnabled: Bool, dataPath: URL) throws {
+        try set("vsync", value: isEnabled ? "true" : "false", dataPath: dataPath)
+    }
+
+    public func vSyncEnabled(dataPath: URL) throws -> Bool? {
+        try boolValue(for: "vsync", dataPath: dataPath)
+    }
+
     public func settingsURL(dataPath: URL) -> URL {
         dataPath.appendingPathComponent(Self.fileName, isDirectory: false)
     }
 
     private func boolValue(for key: String, dataPath: URL) throws -> Bool? {
+        guard let value = try stringValue(for: key, dataPath: dataPath)?.lowercased() else {
+            return nil
+        }
+
+        switch value {
+        case "1", "true", "yes":
+            return true
+        case "0", "false", "no":
+            return false
+        default:
+            return nil
+        }
+    }
+
+    private func intValue(for key: String, dataPath: URL) throws -> Int? {
+        guard let value = try stringValue(for: key, dataPath: dataPath) else {
+            return nil
+        }
+        return Int(value)
+    }
+
+    private func stringValue(for key: String, dataPath: URL) throws -> String? {
         let url = settingsURL(dataPath: dataPath)
         guard fileManager.fileExists(atPath: url.path) else {
             return nil
@@ -35,15 +82,7 @@ public struct RuntimeClientSettingsStore {
 
         let value = line.dropFirst(prefix.count)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        switch value {
-        case "1", "true", "yes":
-            return true
-        case "0", "false", "no":
-            return false
-        default:
-            return nil
-        }
+        return value
     }
 
     private func set(_ key: String, value: String, dataPath: URL) throws {

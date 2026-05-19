@@ -1,3 +1,4 @@
+import MinecraftBedrockLauncherCore
 import SwiftUI
 
 struct SettingsView: View {
@@ -16,6 +17,12 @@ struct SettingsView: View {
     @AppStorage(LauncherPreferences.showInGameStatusBarKey)
     private var showInGameStatusBar = false
 
+    @AppStorage(LauncherPreferences.fpsCounterVisibilityKey)
+    private var fpsCounterVisibility = RuntimeHUDVisibility.off.rawValue
+
+    @AppStorage(LauncherPreferences.vSyncEnabledKey)
+    private var vSyncEnabled = true
+
     @State private var pendingDeleteAction: DeleteAction?
     @State private var completedAction: DeleteAction?
 
@@ -26,6 +33,13 @@ struct SettingsView: View {
                     .font(.headline)
 
                 VStack(spacing: 0) {
+                    ToggleRow(
+                        title: "Launcher",
+                        subtitle: "Keep this app current",
+                        systemImage: "arrow.down.app",
+                        isOn: $automaticallyCheckLauncherUpdates
+                    )
+                    Divider()
                     ToggleRow(
                         title: "Runtime",
                         subtitle: "Keep native launcher files current",
@@ -38,13 +52,6 @@ struct SettingsView: View {
                         subtitle: "Check Google Play automatically",
                         systemImage: "cube",
                         isOn: $automaticallyCheckGameUpdates
-                    )
-                    Divider()
-                    ToggleRow(
-                        title: "Launcher",
-                        subtitle: "Keep this app current",
-                        systemImage: "arrow.down.app",
-                        isOn: $automaticallyCheckLauncherUpdates
                     )
                 }
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -60,6 +67,25 @@ struct SettingsView: View {
                         subtitle: "Show runtime controls in Minecraft",
                         systemImage: "menubar.rectangle",
                         isOn: $showInGameStatusBar
+                    )
+                    Divider()
+                    ToggleRow(
+                        title: "VSync",
+                        subtitle: "Synchronize frame pacing",
+                        systemImage: "display",
+                        isOn: $vSyncEnabled
+                    )
+                    Divider()
+                    SegmentedRow(
+                        title: "FPS Counter",
+                        subtitle: "Frame rate overlay",
+                        systemImage: "speedometer",
+                        selection: $fpsCounterVisibility,
+                        options: [
+                            .init(title: "Off", value: RuntimeHUDVisibility.off.rawValue),
+                            .init(title: "In Game", value: RuntimeHUDVisibility.inGame.rawValue),
+                            .init(title: "Always", value: RuntimeHUDVisibility.always.rawValue)
+                        ]
                     )
                 }
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -179,6 +205,56 @@ private struct ToggleRow: View {
 
             Toggle(title, isOn: $isOn)
                 .labelsHidden()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+    }
+}
+
+private struct SegmentedRow: View {
+    struct Option: Identifiable {
+        var title: String
+        var value: Int
+
+        var id: Int {
+            value
+        }
+    }
+
+    var title: String
+    var subtitle: String
+    var systemImage: String
+    @Binding var selection: Int
+    var options: [Option]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+                .primaryIconBounce(id: systemImage)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.callout)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+
+            Picker(title, selection: $selection) {
+                ForEach(options) { option in
+                    Text(option.title)
+                        .tag(option.value)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 176)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)

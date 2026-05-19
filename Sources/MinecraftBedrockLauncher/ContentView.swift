@@ -412,35 +412,25 @@ struct ContentView: View {
         } else if isShowingDownloadProgress {
             VStack(spacing: 6) {
                 if model.downloadState.phase == .extracting {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(downloadStatusText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    .frame(height: 31)
-                    .frame(maxWidth: .infinity)
+                    inlineProgressText(primary: downloadStatusText)
                 } else {
                     if isDeterminateDownloadProgress {
                         ProgressView(value: model.downloadState.progress)
-                    } else {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    HStack(spacing: 8) {
-                        progressText(primary: downloadStatusText, secondary: downloadSecondaryStatusText)
-                        if model.downloadState.phase == .downloading {
-                            Button {
-                                model.cancelDownload()
-                            } label: {
-                                Image(systemName: "xmark")
+                        HStack(spacing: 8) {
+                            progressText(primary: downloadStatusText, secondary: downloadSecondaryStatusText)
+                            if model.downloadState.phase == .downloading {
+                                Button {
+                                    model.cancelDownload()
+                                } label: {
+                                    Image(systemName: "xmark")
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.small)
+                                .help("Cancel download")
                             }
-                            .buttonStyle(.borderless)
-                            .controlSize(.small)
-                            .help("Cancel download")
                         }
+                    } else {
+                        inlineProgressText(primary: downloadStatusText, secondary: downloadSecondaryStatusText)
                     }
                 }
             }
@@ -452,27 +442,21 @@ struct ContentView: View {
     private var runtimeProgress: some View {
         VStack(spacing: 6) {
             if model.runtimeState.phase == .installing {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(runtimeProgressText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .frame(height: 50)
-                .frame(maxWidth: .infinity)
+                inlineProgressText(primary: runtimeProgressText, height: 50)
             } else {
                 if isDeterminateRuntimeProgress {
                     ProgressView(value: model.runtimeState.progress)
+                    if model.canSkipRuntimeUpdateCheck {
+                        runtimeSkipProgress
+                    } else {
+                        progressText(primary: runtimeProgressText, secondary: runtimeSecondaryProgressText)
+                    }
                 } else {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-                if model.canSkipRuntimeUpdateCheck {
-                    runtimeSkipProgress
-                } else {
-                    progressText(primary: runtimeProgressText, secondary: runtimeSecondaryProgressText)
+                    if model.canSkipRuntimeUpdateCheck {
+                        runtimeSkipProgress
+                    } else {
+                        inlineProgressText(primary: runtimeProgressText, secondary: runtimeSecondaryProgressText)
+                    }
                 }
             }
         }
@@ -480,13 +464,8 @@ struct ContentView: View {
 
     private var runtimeSkipProgress: some View {
         ZStack(alignment: .trailing) {
-            Text(runtimeProgressText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .monospacedDigit()
-                .frame(maxWidth: .infinity)
+            inlineProgressText(primary: runtimeProgressText)
+                .padding(.horizontal, 76)
 
             Button {
                 model.skipRuntimeUpdateCheck()
@@ -502,25 +481,46 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private func inlineProgressText(primary: String, secondary: String? = nil, height: CGFloat = 31) -> some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            compactProgressText(primary: primary, secondary: secondary)
+        }
+        .frame(height: height)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func compactProgressText(primary: String, secondary: String?) -> some View {
+        if let secondary {
+            VStack(alignment: .leading, spacing: 1) {
+                progressLine(primary, font: .caption, style: .secondary)
+                progressLine(secondary, font: .caption2, style: .tertiary)
+            }
+        } else {
+            progressLine(primary, font: .caption, style: .secondary)
+        }
+    }
+
     private func progressText(primary: String, secondary: String?) -> some View {
         VStack(spacing: 1) {
-            Text(primary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .monospacedDigit()
+            progressLine(primary, font: .caption, style: .secondary)
                 .frame(maxWidth: .infinity)
 
-            Text(secondary ?? " ")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .monospacedDigit()
+            progressLine(secondary ?? " ", font: .caption2, style: .tertiary)
                 .frame(maxWidth: .infinity)
         }
         .frame(height: 31)
+    }
+
+    private func progressLine(_ text: String, font: Font, style: HierarchicalShapeStyle) -> some View {
+        Text(text)
+            .font(font)
+            .foregroundStyle(style)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .monospacedDigit()
     }
 
     private var statusBar: some View {

@@ -35,9 +35,9 @@ final class DockProgressController {
 
     private func dockProgress(for downloadState: DownloadState) -> Double? {
         switch downloadState.phase {
-        case .downloading, .extracting:
+        case .downloading:
             return downloadState.progress
-        case .idle, .authenticating, .fetchingLatest, .preparingFirstLaunch, .installed, .failed:
+        case .idle, .authenticating, .fetchingLatest, .extracting, .preparingFirstLaunch, .installed, .failed:
             return nil
         }
     }

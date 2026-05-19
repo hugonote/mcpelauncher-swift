@@ -58,15 +58,15 @@ struct GoogleLoginSheet: View {
 
     private var statusText: String {
         if isCompleting {
-            return "OAuth token captured. Completing sign in..."
+            return "OAuth token captured. Completing sign in"
         }
         if capturedOAuthToken.isEmpty {
             return "Finish the Google prompt. The launcher will close this window automatically."
         }
         if consentAccepted || setupFinished {
-            return "Finishing Google sign in..."
+            return "Finishing Google sign in"
         }
-        return "Google consent is ready. Finishing automatically..."
+        return "Google consent is ready. Finishing automatically"
     }
 
     private func completeAfterGoogleSettles() {

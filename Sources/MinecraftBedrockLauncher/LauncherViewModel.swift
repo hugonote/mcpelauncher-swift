@@ -147,7 +147,7 @@ final class LauncherViewModel: ObservableObject {
             }
             let email = displayEmail(for: credential.email)
             if fetchLatestAfterLoad && LauncherPreferences.automaticallyCheckGameUpdates {
-                statusText = "Signed in as \(email). Checking latest Google Play version..."
+                statusText = "Signed in as \(email). Checking latest Google Play version"
                 await fetchLatest()
             } else {
                 statusText = "Signed in as \(email)."
@@ -166,7 +166,7 @@ final class LauncherViewModel: ObservableObject {
         credentialAccessDenied = false
         errorText = nil
         updateWarningText = nil
-        statusText = "Requesting Keychain access..."
+        statusText = "Requesting Keychain access"
         await loadStoredCredentialAndFetchLatest()
     }
 
@@ -274,7 +274,7 @@ final class LauncherViewModel: ObservableObject {
             updateWarningText = nil
             showingLogin = false
             downloadState = DownloadState(phase: .authenticating)
-            statusText = "Completing Google Play sign in..."
+            statusText = "Completing Google Play sign in"
             let googlePlay = makeGooglePlayClient()
             let request = GooglePlayAuthRequest(
                 accountIdentifier: email,
@@ -288,7 +288,7 @@ final class LauncherViewModel: ObservableObject {
             didTryLoadingStoredCredential = true
             downloadState = DownloadState()
             errorText = nil
-            statusText = "Signed in as \(displayEmail(for: savedCredential.email)). Checking latest Google Play version..."
+            statusText = "Signed in as \(displayEmail(for: savedCredential.email)). Checking latest Google Play version"
             await fetchLatest()
         } catch {
             downloadState = DownloadState(versionName: latestVersion?.versionName, phase: .failed, error: error.localizedDescription)
@@ -316,7 +316,7 @@ final class LauncherViewModel: ObservableObject {
                 downloadState = DownloadState(
                     versionName: downloadable.versionName,
                     phase: .fetchingLatest,
-                    detail: "Checking purchase..."
+                    detail: "Checking purchase"
                 )
                 try await checkDownloadAccess(for: downloadable, credential: credential)
             }
@@ -438,7 +438,7 @@ final class LauncherViewModel: ObservableObject {
                 versionName: downloadable.versionName,
                 progress: 0.02,
                 phase: .downloading,
-                detail: "Starting download..."
+                detail: "Starting download"
             )
             lastDownloadProgressUpdate = nil
             startDownloadStallWatch(versionName: downloadable.versionName)
@@ -470,7 +470,7 @@ final class LauncherViewModel: ObservableObject {
                 versionName: downloadable.versionName,
                 progress: 0.86,
                 phase: .extracting,
-                detail: "Extracting APK files..."
+                detail: "Extracting APK files"
             )
             let installer = GameInstaller(processRunner: processRunner)
             let versionsURL = paths.versionsURL
@@ -494,7 +494,7 @@ final class LauncherViewModel: ObservableObject {
                 versionName: downloadable.versionName,
                 progress: 0.98,
                 phase: .extracting,
-                detail: "Preparing first launch..."
+                detail: "Preparing first launch"
             )
             let patchPath = try await compatibilityPatchPath(for: installed)
             try applyCompatibilityLibraryPatches(to: installed, patchPath: patchPath)
@@ -564,7 +564,7 @@ final class LauncherViewModel: ObservableObject {
             let patchPath = try await compatibilityPatchPath(for: selectedVersion)
             try applyCompatibilityLibraryPatches(to: selectedVersion, patchPath: patchPath)
             let launcher = RuntimeLauncher(processRunner: processRunner)
-            statusText = "Launching \(selectedVersion.versionName)..."
+            statusText = "Launching \(selectedVersion.versionName)"
             let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
             let googleCredential = try loadStoredCredentialIfNeeded()
             let logURL = launchLogURL(for: selectedVersion)
@@ -700,7 +700,7 @@ final class LauncherViewModel: ObservableObject {
         }
 
         await installRuntime(
-            forceStatus: hasRuntime ? "Checking runtime update..." : "Downloading runtime...",
+            forceStatus: hasRuntime ? "Checking runtime update" : "Downloading runtime",
             phase: hasRuntime ? .checking : .downloading,
             allowsSkip: hasRuntime
         )
@@ -712,7 +712,7 @@ final class LauncherViewModel: ObservableObject {
         if (try? launcher.runtimeExecutable(in: current)) != nil {
             return current
         }
-        await installRuntime(forceStatus: "Downloading runtime...", phase: .downloading)
+        await installRuntime(forceStatus: "Downloading runtime", phase: .downloading)
         let installed = runtimeURL()
         if (try? launcher.runtimeExecutable(in: installed)) != nil {
             return installed
@@ -854,7 +854,7 @@ final class LauncherViewModel: ObservableObject {
             runtimeState = RuntimeState(
                 phase: .installing,
                 version: runtimeState.version,
-                detail: "Installing runtime...",
+                detail: "Installing runtime",
                 progress: 1,
                 bytesReceived: progress.bytesReceived,
                 totalBytes: progress.totalBytes,
@@ -907,7 +907,7 @@ final class LauncherViewModel: ObservableObject {
 
     private func runtimeDownloadStatusText(for progress: DownloadProgress) -> String {
         guard let total = progress.totalBytes, total > 0 else {
-            return "Downloading runtime..."
+            return "Downloading runtime"
         }
         let percent = Double(progress.bytesReceived) / Double(total) * 100
         return String(format: "Downloading runtime %.1f%%", percent)
@@ -1036,7 +1036,7 @@ final class LauncherViewModel: ObservableObject {
             versionName: versionName,
             progress: clamped,
             phase: .extracting,
-            detail: "Extracting APK files..."
+            detail: "Extracting APK files"
         )
     }
 

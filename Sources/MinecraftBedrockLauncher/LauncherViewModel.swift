@@ -818,6 +818,7 @@ final class LauncherViewModel: ObservableObject {
             return
         }
         let fraction = progress.fractionCompleted
+        let progressValue = fraction > 0 ? min(max(fraction, 0.02), 1) : runtimeState.progress
         let isComplete = progress.totalBytes.map { $0 > 0 && progress.bytesReceived >= $0 } ?? false
         if isComplete {
             runtimeState = RuntimeState(
@@ -836,7 +837,7 @@ final class LauncherViewModel: ObservableObject {
             phase: .downloading,
             version: runtimeState.version,
             detail: runtimeDownloadStatusText(for: progress),
-            progress: fraction > 0 ? fraction : runtimeState.progress,
+            progress: progressValue,
             bytesReceived: progress.bytesReceived,
             totalBytes: progress.totalBytes,
             speedBytesPerSecond: progress.speedBytesPerSecond,

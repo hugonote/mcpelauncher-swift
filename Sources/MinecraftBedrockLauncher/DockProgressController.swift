@@ -10,12 +10,20 @@ final class DockProgressController {
     private init() {}
 
     func update(downloadState: DownloadState) {
-        guard downloadState.phase == .downloading || downloadState.phase == .extracting else {
+        update(progress: dockProgress(for: downloadState))
+    }
+
+    func update(downloadState: DownloadState, runtimeState: RuntimeState) {
+        update(progress: dockProgress(for: runtimeState) ?? dockProgress(for: downloadState))
+    }
+
+    private func update(progress: Double?) {
+        guard let progress else {
             clear()
             return
         }
 
-        tileView.progress = min(max(downloadState.progress, 0), 1)
+        tileView.progress = min(max(progress, 0), 1)
         NSApp.dockTile.contentView = tileView
         NSApp.dockTile.display()
     }
@@ -23,6 +31,24 @@ final class DockProgressController {
     func clear() {
         NSApp.dockTile.contentView = nil
         NSApp.dockTile.display()
+    }
+
+    private func dockProgress(for downloadState: DownloadState) -> Double? {
+        switch downloadState.phase {
+        case .downloading, .extracting:
+            return downloadState.progress
+        case .idle, .authenticating, .fetchingLatest, .installed, .failed:
+            return nil
+        }
+    }
+
+    private func dockProgress(for runtimeState: RuntimeState) -> Double? {
+        switch runtimeState.phase {
+        case .downloading, .installing:
+            return runtimeState.progress
+        case .missing, .checking, .ready, .failed:
+            return nil
+        }
     }
 }
 

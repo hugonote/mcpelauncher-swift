@@ -60,8 +60,11 @@ struct ContentView: View {
             Text("You will need to sign in again before downloading Minecraft updates.")
         }
         .background(WindowConfigurator(window: $window, isVisible: isStartupComplete))
-        .onChange(of: model.downloadState) { _, state in
-            DockProgressController.shared.update(downloadState: state)
+        .onChange(of: model.downloadState) { _, _ in
+            updateDockProgress()
+        }
+        .onChange(of: model.runtimeState) { _, _ in
+            updateDockProgress()
         }
         .onDisappear {
             DockProgressController.shared.clear()
@@ -73,6 +76,10 @@ struct ContentView: View {
             await model.start()
             isStartupComplete = true
         }
+    }
+
+    private func updateDockProgress() {
+        DockProgressController.shared.update(downloadState: model.downloadState, runtimeState: model.runtimeState)
     }
 
     private var accountBar: some View {

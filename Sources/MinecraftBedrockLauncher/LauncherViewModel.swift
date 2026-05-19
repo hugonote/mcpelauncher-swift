@@ -801,7 +801,7 @@ final class LauncherViewModel: ObservableObject {
         }
 
         await installRuntime(
-            forceStatus: hasRuntime ? "Checking runtime update" : "Downloading runtime",
+            forceStatus: hasRuntime ? "Checking for updates" : "Downloading runtime",
             phase: hasRuntime ? .checking : .downloading,
             allowsSkip: hasRuntime
         )

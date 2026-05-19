@@ -590,42 +590,6 @@ final class LauncherViewModel: ObservableObject {
             || environment["MCPELAUNCHER_SCREENSHOT_MODE"] == "1"
     }
 
-    func exportSelectedBundle() async {
-        do {
-            errorText = nil
-            guard let selectedVersion else {
-                statusText = "Install a version first."
-                return
-            }
-            guard let outputDirectory = await chooseExportDirectory() else {
-                return
-            }
-            guard let runtimePath = await ensureRuntimeForUse() else {
-                return
-            }
-            let patchPath = try await compatibilityPatchPath(for: selectedVersion)
-            let spec = BundleSpec(
-                appName: "Minecraft Bedrock",
-                bundleIdentifier: "local.minecraft.bedrock.mcpelauncher",
-                version: selectedVersion.versionName,
-                runtimePath: runtimePath,
-                gameVersionPath: selectedVersion.installPath,
-                outputPath: outputDirectory,
-                compatibilityPatchPath: patchPath,
-                googleCredentialsHelperPath: credentialsHelperURL(),
-                webViewHelperPath: webViewHelperURL()
-            )
-            let builder = BundleBuilder()
-            let appURL = try await runOffMain {
-                try builder.build(spec: spec, overwrite: false)
-            }
-            errorText = nil
-            statusText = "Exported \(appURL.lastPathComponent)."
-        } catch {
-            show(error)
-        }
-    }
-
     private func makeGooglePlayClient() -> any GooglePlayDownloading {
         GPlayCLIClient(
             gplayverURL: gplayverURL(),
@@ -664,16 +628,6 @@ final class LauncherViewModel: ObservableObject {
             .appendingPathComponent("Contents", isDirectory: true)
             .appendingPathComponent("Helpers", isDirectory: true)
             .appendingPathComponent("mcpelauncher-ui-qt", isDirectory: false)
-    }
-
-    private func webViewHelperURL() -> URL {
-        if let override = ProcessInfo.processInfo.environment["MCPELAUNCHER_WEBVIEW_PATH"], !override.isEmpty {
-            return URL(fileURLWithPath: override)
-        }
-        return Bundle.main.bundleURL
-            .appendingPathComponent("Contents", isDirectory: true)
-            .appendingPathComponent("Helpers", isDirectory: true)
-            .appendingPathComponent("mcpelauncher-webview", isDirectory: false)
     }
 
     private func runtimeURL() -> URL {
@@ -1198,20 +1152,6 @@ final class LauncherViewModel: ObservableObject {
             "first-launch-warmup-\(version.versionName)-\(stamp).log",
             isDirectory: false
         )
-    }
-
-    private func chooseExportDirectory() async -> URL? {
-        await withCheckedContinuation { continuation in
-            let panel = NSOpenPanel()
-            panel.canChooseFiles = false
-            panel.canChooseDirectories = true
-            panel.canCreateDirectories = true
-            panel.allowsMultipleSelection = false
-            panel.prompt = "Export"
-            panel.begin { response in
-                continuation.resume(returning: response == .OK ? panel.url : nil)
-            }
-        }
     }
 
     private func show(_ error: Error) {

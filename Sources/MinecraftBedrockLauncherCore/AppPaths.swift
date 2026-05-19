@@ -78,7 +78,6 @@ public enum LauncherError: Error, LocalizedError, Equatable {
     case missingCredential
     case invalidAPK(URL, reason: String)
     case noCompatibleMinecraftLibrary(URL)
-    case outputAlreadyExists(URL)
     case missingRuntimeExecutable(URL)
     case unsupportedArchiveTool(URL)
     case runtimeReleaseNotFound(String)
@@ -112,8 +111,6 @@ public enum LauncherError: Error, LocalizedError, Equatable {
             return "Invalid APK \(url.lastPathComponent): \(reason)"
         case .noCompatibleMinecraftLibrary(let url):
             return "No arm64-v8a libminecraftpe.so was extracted into \(url.path)."
-        case .outputAlreadyExists(let url):
-            return "The output app already exists: \(url.path)."
         case .missingRuntimeExecutable(let url):
             return "Could not find mcpelauncher-client in runtime path \(url.path)."
         case .unsupportedArchiveTool(let url):

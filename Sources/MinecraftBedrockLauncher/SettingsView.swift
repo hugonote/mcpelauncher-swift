@@ -78,16 +78,6 @@ struct SettingsView: View {
                         isComplete: completedAction == .data,
                         action: { pendingDeleteAction = .data }
                     )
-                    Divider()
-                    ActionRow(
-                        title: "Export App",
-                        subtitle: "Create a standalone app bundle",
-                        systemImage: "shippingbox",
-                        isDisabled: !model.canUseSelectedVersion || !model.isRuntimeReady || model.isRuntimeBusy,
-                        action: {
-                            Task { await model.exportSelectedBundle() }
-                        }
-                    )
                 }
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
             }
@@ -222,44 +212,6 @@ private struct DeleteRow: View {
             }
             .buttonStyle(.borderless)
             .disabled(isWorking)
-            .help(title)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-    }
-}
-
-private struct ActionRow: View {
-    var title: String
-    var subtitle: String
-    var systemImage: String
-    var isDisabled: Bool
-    var action: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 15))
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
-                .primaryIconBounce(id: systemImage)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.callout)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 12)
-
-            Button(action: action) {
-                Image(systemName: "square.and.arrow.up")
-            }
-            .buttonStyle(.borderless)
-            .disabled(isDisabled)
             .help(title)
         }
         .padding(.horizontal, 10)

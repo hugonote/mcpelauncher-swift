@@ -171,40 +171,6 @@ public struct RuntimeMetadata: Codable, Equatable, Sendable {
     }
 }
 
-public struct BundleSpec: Codable, Equatable, Hashable, Sendable {
-    public var appName: String
-    public var bundleIdentifier: String
-    public var version: String
-    public var runtimePath: URL
-    public var gameVersionPath: URL
-    public var outputPath: URL
-    public var compatibilityPatchPath: URL?
-    public var googleCredentialsHelperPath: URL?
-    public var webViewHelperPath: URL?
-
-    public init(
-        appName: String,
-        bundleIdentifier: String,
-        version: String,
-        runtimePath: URL,
-        gameVersionPath: URL,
-        outputPath: URL,
-        compatibilityPatchPath: URL? = nil,
-        googleCredentialsHelperPath: URL? = nil,
-        webViewHelperPath: URL? = nil
-    ) {
-        self.appName = appName
-        self.bundleIdentifier = bundleIdentifier
-        self.version = version
-        self.runtimePath = runtimePath
-        self.gameVersionPath = gameVersionPath
-        self.outputPath = outputPath
-        self.compatibilityPatchPath = compatibilityPatchPath
-        self.googleCredentialsHelperPath = googleCredentialsHelperPath
-        self.webViewHelperPath = webViewHelperPath
-    }
-}
-
 public struct GoogleCredential: Codable, Equatable, Sendable {
     public var email: String
     public var masterToken: String

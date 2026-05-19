@@ -37,7 +37,6 @@ macOS 14 or newer is required.
 - Store Google Play credentials in the macOS Keychain.
 - Version lookup and APK/split APK download through bundled Google Play tools.
 - Runtime download/update and compatibility patch setup.
-- Local app bundle export for an installed version.
 
 The launcher code is MIT licensed. Upstream components keep their own licenses.
 

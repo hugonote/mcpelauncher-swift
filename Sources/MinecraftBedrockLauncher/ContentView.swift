@@ -1373,10 +1373,14 @@ private struct WindowConfigurator: NSViewRepresentable {
     @Binding var window: NSWindow?
     var isVisible: Bool
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
-            configure(window: view.window, isVisible: isVisible)
+            configure(window: view.window, isVisible: isVisible, coordinator: context.coordinator)
             window = view.window
         }
         return view
@@ -1384,15 +1388,16 @@ private struct WindowConfigurator: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
-            configure(window: view.window, isVisible: isVisible)
+            configure(window: view.window, isVisible: isVisible, coordinator: context.coordinator)
             window = view.window
         }
     }
 
-    private func configure(window: NSWindow?, isVisible: Bool) {
+    private func configure(window: NSWindow?, isVisible: Bool, coordinator: Coordinator) {
         guard let window else {
             return
         }
+        coordinator.observeClose(of: window)
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
@@ -1411,6 +1416,38 @@ private struct WindowConfigurator: NSViewRepresentable {
             StartupWindowVisibility.shared.reveal(window)
         } else if isVisible {
             window.ignoresMouseEvents = false
+        }
+    }
+
+    final class Coordinator {
+        private weak var observedWindow: NSWindow?
+        private var closeObserver: NSObjectProtocol?
+
+        deinit {
+            if let closeObserver {
+                NotificationCenter.default.removeObserver(closeObserver)
+            }
+        }
+
+        func observeClose(of window: NSWindow) {
+            guard observedWindow !== window else {
+                return
+            }
+
+            if let closeObserver {
+                NotificationCenter.default.removeObserver(closeObserver)
+            }
+
+            observedWindow = window
+            closeObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification,
+                object: window,
+                queue: .main
+            ) { _ in
+                Task { @MainActor in
+                    NSApp.terminate(nil)
+                }
+            }
         }
     }
 }

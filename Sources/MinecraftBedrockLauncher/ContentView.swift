@@ -166,7 +166,7 @@ struct ContentView: View {
 
     private var versionLine: some View {
         HStack(spacing: 5) {
-            Text(versionText)
+            versionSubtitle
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -188,6 +188,18 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: usesMultilineSubtitle ? 280 : .infinity)
+    }
+
+    @ViewBuilder
+    private var versionSubtitle: some View {
+        if let transition = updateVersionTransition {
+            (Text(transition.installed)
+                + Text(" → ")
+                + Text(transition.latest))
+                .accessibilityLabel("Version \(transition.installed) updates to \(transition.latest)")
+        } else {
+            Text(versionText)
+        }
     }
 
     private var versionInfoPopover: some View {
@@ -377,7 +389,7 @@ struct ContentView: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Button {
                 Task { await primaryAction() }
             } label: {
@@ -390,19 +402,37 @@ struct ContentView: View {
             .disabled(isPrimaryButtonDisabled)
 
             if shouldShowPlaySideButton {
-                Button {
-                    Task { await model.playSelected() }
-                } label: {
-                    Image(systemName: "play.fill")
-                        .frame(width: 16, height: 16)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .clipShape(Circle())
-                .help("Play installed version")
-                .disabled(model.isGooglePlayBusy || model.isRuntimeBusy)
+                playSideButton
             }
         }
+    }
+
+    private var playSideButton: some View {
+        let isDisabled = model.isGooglePlayBusy || model.isRuntimeBusy
+
+        return Button {
+            Task { await model.playSelected() }
+        } label: {
+            Image(systemName: "play.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 30, height: 30)
+                .background {
+                    Circle()
+                        .fill(.regularMaterial)
+                }
+                .overlay {
+                    Circle()
+                        .strokeBorder(.secondary.opacity(0.22), lineWidth: 1)
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: 30, height: 30)
+        .fixedSize()
+        .help("Play installed version")
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1)
     }
 
     @ViewBuilder
@@ -806,6 +836,25 @@ struct ContentView: View {
         return !model.installedVersions.contains { $0.versionCode == latest.versionCode }
     }
 
+    private var updateVersionTransition: (installed: String, latest: String)? {
+        guard shouldUseBedrockIcon,
+              isMinecraftUpdateAvailable,
+              let installed = currentInstalledVersionForUpdate,
+              let latest = model.latestVersion else {
+            return nil
+        }
+        return (installed.versionName, latest.versionName)
+    }
+
+    private var currentInstalledVersionForUpdate: InstalledVersion? {
+        if let selected = model.selectedVersion {
+            return selected
+        }
+        return model.installedVersions.max { lhs, rhs in
+            lhs.installedAt < rhs.installedAt
+        }
+    }
+
     private var shouldShowPlaySideButton: Bool {
         isMinecraftUpdateAvailable && model.canUseSelectedVersion && model.isRuntimeReady
     }
@@ -838,6 +887,9 @@ struct ContentView: View {
         }
         if isTitleIconMissing {
             return .missing
+        }
+        if shouldUseBedrockIcon && isMinecraftUpdateAvailable {
+            return .updateAvailable
         }
         return nil
     }
@@ -1127,6 +1179,18 @@ struct ContentView: View {
 private enum TitleIconBadge: Equatable {
     case missing
     case working
+    case updateAvailable
+
+    var accessibilityLabel: String {
+        switch self {
+        case .missing:
+            return "Version missing"
+        case .working:
+            return "Working"
+        case .updateAvailable:
+            return "Update available"
+        }
+    }
 }
 
 private struct OfflineGlobeView: View {
@@ -1181,10 +1245,14 @@ private struct TitleIconBadgeView: View {
                 missingBadge
             case .working:
                 workingBadge
+            case .updateAvailable:
+                updateAvailableBadge
             }
         }
         .frame(width: 18, height: 18)
         .shadow(color: .black.opacity(0.12), radius: 1.5, x: 0, y: 1)
+        .accessibilityLabel(kind.accessibilityLabel)
+        .help(kind.accessibilityLabel)
     }
 
     private var missingBadge: some View {
@@ -1221,6 +1289,18 @@ private struct TitleIconBadgeView: View {
                 .onDisappear {
                     isRotating = false
                 }
+        }
+    }
+
+    private var updateAvailableBadge: some View {
+        ZStack {
+            Circle()
+                .fill(.orange)
+
+            Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                .font(.system(size: 10, weight: .bold))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(.white)
         }
     }
 }

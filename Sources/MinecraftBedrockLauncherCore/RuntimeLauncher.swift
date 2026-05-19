@@ -131,7 +131,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         dataPath: URL,
         cachePath: URL,
         credentialsHelperDirectory: URL,
-        googleCredential: GoogleCredential,
+        googleCredential: GoogleCredential? = nil,
         logURL: URL? = nil,
         timeout: TimeInterval = 45
     ) throws -> RuntimeWarmUpResult {

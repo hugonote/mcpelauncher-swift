@@ -37,7 +37,7 @@ final class DockProgressController {
         switch downloadState.phase {
         case .downloading, .extracting:
             return downloadState.progress
-        case .idle, .authenticating, .fetchingLatest, .installed, .failed:
+        case .idle, .authenticating, .fetchingLatest, .preparingFirstLaunch, .installed, .failed:
             return nil
         }
     }

@@ -31,7 +31,7 @@ final class LauncherViewModel: ObservableObject {
 
     var isGooglePlayBusy: Bool {
         switch downloadState.phase {
-        case .authenticating, .fetchingLatest, .downloading, .extracting:
+        case .authenticating, .fetchingLatest, .downloading, .extracting, .preparingFirstLaunch:
             return true
         case .idle, .installed, .failed:
             return false
@@ -503,20 +503,18 @@ final class LauncherViewModel: ObservableObject {
                 let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
                 let dataPath = paths.minecraftDataURL
                 let cachePath = paths.minecraftCacheURL
-                let warmUpLogURL = firstLaunchWarmUpLogURL(for: installed)
                 try applyRuntimeClientPreferences(dataPath: dataPath)
-                _ = try await runOffMain {
-                    try RuntimeLauncher().warmUpFirstLaunch(
-                        runtimePath: runtimePath,
-                        version: installed,
-                        compatibilityPatchPath: patchPath,
-                        dataPath: dataPath,
-                        cachePath: cachePath,
-                        credentialsHelperDirectory: credentialsHelperDirectory,
-                        googleCredential: credential,
-                        logURL: warmUpLogURL
-                    )
-                }
+                try await prepareFirstLaunchUntilReady(
+                    launcher: RuntimeLauncher(),
+                    runtimePath: runtimePath,
+                    version: installed,
+                    patchPath: patchPath,
+                    dataPath: dataPath,
+                    cachePath: cachePath,
+                    credentialsHelperDirectory: credentialsHelperDirectory,
+                    googleCredential: credential,
+                    detail: "Preparing first launch"
+                )
             }
             try removeObsoleteMinecraftFiles(keeping: installed)
             try registry.save([installed])
@@ -573,6 +571,20 @@ final class LauncherViewModel: ObservableObject {
             let dataPath = paths.minecraftDataURL
             let cachePath = paths.minecraftCacheURL
             try applyRuntimeClientPreferences(dataPath: dataPath)
+            if shouldWarmUpFirstLaunch(dataPath: dataPath) {
+                try await prepareFirstLaunchUntilReady(
+                    launcher: launcher,
+                    runtimePath: runtimePath,
+                    version: selectedVersion,
+                    patchPath: patchPath,
+                    dataPath: dataPath,
+                    cachePath: cachePath,
+                    credentialsHelperDirectory: credentialsHelperDirectory,
+                    googleCredential: googleCredential,
+                    detail: "Preparing first launch"
+                )
+                statusText = "Launching \(selectedVersion.versionName)"
+            }
             try await runOffMain {
                 try launcher.launchDetached(
                     runtimePath: runtimePath,
@@ -589,8 +601,65 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             statusText = "Minecraft exited. Log: \(logURL.path)"
         } catch {
+            downloadState = DownloadState(versionName: selectedVersion?.versionName, phase: .failed, error: error.localizedDescription)
             show(error)
         }
+    }
+
+    private func prepareFirstLaunchUntilReady(
+        launcher: RuntimeLauncher,
+        runtimePath: URL,
+        version: InstalledVersion,
+        patchPath: URL,
+        dataPath: URL,
+        cachePath: URL,
+        credentialsHelperDirectory: URL,
+        googleCredential: GoogleCredential?,
+        detail: String,
+        maxAttempts: Int = 3
+    ) async throws {
+        var lastWarmUpLogURL: URL?
+        for attempt in 1...maxAttempts {
+            downloadState = DownloadState(
+                versionName: version.versionName,
+                progress: 0.98,
+                phase: .preparingFirstLaunch,
+                detail: detail
+            )
+            statusText = detail
+
+            let warmUpLogURL = firstLaunchWarmUpLogURL(for: version, attempt: attempt)
+            lastWarmUpLogURL = warmUpLogURL
+            let result = try await runOffMain {
+                try launcher.warmUpFirstLaunch(
+                    runtimePath: runtimePath,
+                    version: version,
+                    compatibilityPatchPath: patchPath,
+                    dataPath: dataPath,
+                    cachePath: cachePath,
+                    credentialsHelperDirectory: credentialsHelperDirectory,
+                    googleCredential: googleCredential,
+                    logURL: warmUpLogURL
+                )
+            }
+            if result == .loadedPairIP {
+                return
+            }
+        }
+
+        throw LauncherError.gameLaunchFailed(
+            status: 11,
+            logURL: lastWarmUpLogURL,
+            outputTail: "First launch preparation did not reach Loaded libpairipcore."
+        )
+    }
+
+    private func shouldWarmUpFirstLaunch(dataPath: URL) -> Bool {
+        !FileManager.default.fileExists(atPath: firstLaunchTokenURL(dataPath: dataPath).path)
+    }
+
+    private func firstLaunchTokenURL(dataPath: URL) -> URL {
+        dataPath.appendingPathComponent("pass.token", isDirectory: false)
     }
 
     private func applyRuntimeClientPreferences(dataPath: URL) throws {
@@ -606,6 +675,7 @@ final class LauncherViewModel: ObservableObject {
         }
         UserDefaults.standard.set(isEnabled, forKey: LauncherPreferences.showInGameStatusBarKey)
     }
+
     private func loadStoredCredentialIfNeeded() throws -> GoogleCredential? {
         if let credential {
             return credential
@@ -1191,12 +1261,13 @@ final class LauncherViewModel: ObservableObject {
         )
     }
 
-    private func firstLaunchWarmUpLogURL(for version: InstalledVersion) -> URL {
+    private func firstLaunchWarmUpLogURL(for version: InstalledVersion, attempt: Int? = nil) -> URL {
         let stamp = ISO8601DateFormatter()
             .string(from: Date())
             .replacingOccurrences(of: ":", with: "-")
+        let attemptSuffix = attempt.map { "-attempt-\($0)" } ?? ""
         return paths.logsURL.appendingPathComponent(
-            "first-launch-warmup-\(version.versionName)-\(stamp).log",
+            "first-launch-warmup-\(version.versionName)-\(stamp)\(attemptSuffix).log",
             isDirectory: false
         )
     }

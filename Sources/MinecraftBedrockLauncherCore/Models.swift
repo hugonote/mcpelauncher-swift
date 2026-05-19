@@ -22,6 +22,7 @@ public enum DownloadPhase: String, Codable, Equatable, Sendable {
     case fetchingLatest
     case downloading
     case extracting
+    case preparingFirstLaunch
     case installed
     case failed
 }

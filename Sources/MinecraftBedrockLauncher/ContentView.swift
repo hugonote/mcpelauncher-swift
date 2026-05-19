@@ -896,7 +896,7 @@ struct ContentView: View {
 
     private var isTitleIconWorking: Bool {
         switch model.downloadState.phase {
-        case .downloading, .extracting:
+        case .downloading, .extracting, .preparingFirstLaunch:
             return true
         case .idle, .authenticating, .fetchingLatest, .installed, .failed:
             break
@@ -1131,6 +1131,8 @@ struct ContentView: View {
             return "Downloading"
         case .extracting:
             return "Extracting"
+        case .preparingFirstLaunch:
+            return "Preparing first launch"
         case .installed:
             return "Installed"
         case .failed:

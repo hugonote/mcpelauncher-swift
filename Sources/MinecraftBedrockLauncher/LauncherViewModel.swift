@@ -661,13 +661,16 @@ final class LauncherViewModel: ObservableObject {
         }
 
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
-        if manager.hasInstalledRuntime(), let metadata = manager.installedMetadata() {
-            runtimeState = RuntimeState(phase: .ready, version: metadata.version, detail: metadata.assetName)
+        let hasRuntime = manager.hasInstalledRuntime()
+        if let state = installedRuntimeState(
+            using: manager,
+            fallbackDetail: "Using installed runtime."
+        ) {
+            runtimeState = state
         } else {
             runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
         }
 
-        let hasRuntime = manager.hasInstalledRuntime()
         await installRuntime(
             forceStatus: hasRuntime ? "Checking runtime update..." : "Downloading runtime...",
             phase: hasRuntime ? .checking : .downloading,

@@ -641,6 +641,9 @@ struct ContentView: View {
             return "Minecraft is not owned by this account"
         }
         if shouldShowRuntimeTitle {
+            if isRuntimeUpdateWork {
+                return "Updating native files for Bedrock on macOS"
+            }
             return "Native files needed to run Bedrock on macOS"
         }
         if let selected = model.selectedVersion {
@@ -660,6 +663,9 @@ struct ContentView: View {
             return "Purchase Required"
         }
         if shouldShowRuntimeTitle {
+            if isRuntimeUpdateWork {
+                return "Runtime Update"
+            }
             return "Runtime Required"
         }
         return "Minecraft Bedrock"
@@ -756,6 +762,20 @@ struct ContentView: View {
             && model.isRuntimeBusy
     }
 
+    private var isRuntimeUpdateWork: Bool {
+        guard shouldShowRuntimeTitle else {
+            return false
+        }
+        switch model.runtimeState.phase {
+        case .checking:
+            return true
+        case .downloading, .installing:
+            return model.runtimeState.version != nil
+        case .missing, .ready, .failed:
+            return false
+        }
+    }
+
     private var titleIconBadge: TitleIconBadge? {
         if isTitleIconWorking {
             return .working
@@ -775,15 +795,18 @@ struct ContentView: View {
         }
 
         switch model.runtimeState.phase {
-        case .downloading, .installing:
+        case .checking, .downloading, .installing:
             return true
-        case .missing, .checking, .ready, .failed:
+        case .missing, .ready, .failed:
             return false
         }
     }
 
     private var isTitleIconMissing: Bool {
         if isPurchaseRequired {
+            return false
+        }
+        if isRuntimeUpdateWork {
             return false
         }
         if shouldShowRuntimeTitle {
@@ -823,6 +846,9 @@ struct ContentView: View {
         }
         if let updateWarningText = model.updateWarningText {
             return updateWarningText
+        }
+        if model.isRuntimeBusy && isRuntimeUpdateWork {
+            return "Runtime update"
         }
         if model.isGooglePlayBusy || model.isRuntimeBusy {
             return "Working"

@@ -165,7 +165,7 @@ struct ContentView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .disabled(model.isGooglePlayBusy)
+                .disabled(model.isGooglePlayBusy || model.isRuntimeBusy)
                 .help("Refresh")
             }
 
@@ -641,9 +641,6 @@ struct ContentView: View {
             return "Minecraft is not owned by this account"
         }
         if shouldShowRuntimeTitle {
-            if isRuntimeUpdateWork {
-                return "Updating native files for Bedrock on macOS"
-            }
             return "Native files needed to run Bedrock on macOS"
         }
         if let selected = model.selectedVersion {
@@ -753,25 +750,23 @@ struct ContentView: View {
     }
 
     private var shouldShowRuntimeTitle: Bool {
-        shouldFocusRuntime || isRuntimePrimaryWork
+        shouldFocusRuntime || isRuntimeDownloadWork
     }
 
-    private var isRuntimePrimaryWork: Bool {
-        !model.isGooglePlayBusy
-            && !model.isRuntimeReady
-            && model.isRuntimeBusy
+    private var isRuntimeDownloadWork: Bool {
+        switch model.runtimeState.phase {
+        case .downloading, .installing:
+            return true
+        case .missing, .checking, .ready, .failed:
+            return false
+        }
     }
 
     private var isRuntimeUpdateWork: Bool {
-        guard shouldShowRuntimeTitle else {
-            return false
-        }
         switch model.runtimeState.phase {
-        case .checking:
-            return true
         case .downloading, .installing:
             return model.runtimeState.version != nil
-        case .missing, .ready, .failed:
+        case .missing, .checking, .ready, .failed:
             return false
         }
     }
@@ -795,9 +790,9 @@ struct ContentView: View {
         }
 
         switch model.runtimeState.phase {
-        case .checking, .downloading, .installing:
+        case .downloading, .installing:
             return true
-        case .missing, .ready, .failed:
+        case .missing, .checking, .ready, .failed:
             return false
         }
     }

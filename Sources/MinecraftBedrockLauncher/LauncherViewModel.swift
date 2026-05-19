@@ -120,10 +120,9 @@ final class LauncherViewModel: ObservableObject {
             installedVersions = try registry.load()
             selectedVersion = installedVersions.first
             refreshSelectedVersionCompatibility()
+            refreshInstalledRuntimeState()
             if LauncherPreferences.automaticallyCheckRuntimeUpdates {
                 startAutomaticRuntimeUpdate()
-            } else {
-                refreshInstalledRuntimeState()
             }
             statusText = selectedVersion == nil ? "Sign in to Google Play to download Minecraft." : "Ready."
         } catch {
@@ -345,6 +344,9 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func refreshVersionInfo() async {
+        if !isRuntimeBusy {
+            startAutomaticRuntimeUpdate()
+        }
         await fetchLatest()
     }
 
@@ -749,11 +751,6 @@ final class LauncherViewModel: ObservableObject {
                 let release = try await manager.resolveLatestRelease()
                 try Task.checkCancellation()
                 canSkipRuntimeUpdateCheck = false
-                runtimeState = RuntimeState(
-                    phase: .downloading,
-                    version: runtimeState.version,
-                    detail: "Starting runtime download..."
-                )
                 metadata = try await manager.install(release, progress: runtimeDownloadProgress)
             } else {
                 metadata = try await manager.installLatest(progress: runtimeDownloadProgress)

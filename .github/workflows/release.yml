@@ -33,6 +33,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Resolve version
         run: |
@@ -151,12 +153,19 @@ jobs:
           : "${DMG_NAME:?DMG_NAME is empty}"
           mkdir -p .build/release
           cp ".build/dmg/$DMG_NAME" .build/release/
+          RELEASE_NOTES_PATH="ReleaseNotes/$RELEASE_TAG.md"
+          if [[ ! -f "$RELEASE_NOTES_PATH" ]]; then
+            echo "Missing release notes: $RELEASE_NOTES_PATH" >&2
+            exit 1
+          fi
+          cp "$RELEASE_NOTES_PATH" ".build/release/${DMG_NAME%.dmg}.md"
           DOWNLOAD_URL_PREFIX="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/"
           EXPECTED_DOWNLOAD_URL="${DOWNLOAD_URL_PREFIX}${DMG_NAME}"
           printf '%s' "$SPARKLE_PRIVATE_ED_KEY" | \
             .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
               --ed-key-file - \
               --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
+              --embed-release-notes \
               --maximum-deltas 0 \
               .build/release
           grep -F "$EXPECTED_DOWNLOAD_URL" .build/release/appcast.xml
@@ -168,6 +177,7 @@ jobs:
           test -s ".build/release/appcast.xml"
           grep -F "<enclosure" .build/release/appcast.xml
           grep -F "sparkle:edSignature=" .build/release/appcast.xml
+          grep -F "Fixed runtime update checks" .build/release/appcast.xml
           if [[ "$RELEASE_SIGNING_MODE" == "developer-id" ]]; then
             spctl --assess --type open --context context:primary-signature -v ".build/release/$DMG_NAME"
           else
@@ -179,10 +189,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          RELEASE_NOTES_OUTPUT=".build/release/${DMG_NAME%.dmg}.md"
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" ".build/release/$DMG_NAME" .build/release/appcast.xml --clobber
+            gh release edit "$RELEASE_TAG" --notes-file "$RELEASE_NOTES_OUTPUT"
           else
             gh release create "$RELEASE_TAG" ".build/release/$DMG_NAME" .build/release/appcast.xml \
               --title "$RELEASE_TAG" \
-              --notes "Minecraft Bedrock Launcher $APP_VERSION"
+              --notes-file "$RELEASE_NOTES_OUTPUT"
           fi

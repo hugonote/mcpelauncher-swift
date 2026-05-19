@@ -11,8 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LauncherPreferences.registerDefaults()
         StartupWindowVisibility.shared.hideUntilStartupCompletes()
 
-        guard AppUpdateConfiguration.isEnabled,
-              LauncherPreferences.automaticallyCheckLauncherUpdates else {
+        guard AppUpdateConfiguration.isEnabled else {
             return
         }
         let controller = SPUStandardUpdaterController(
@@ -20,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
+        controller.updater.automaticallyChecksForUpdates = LauncherPreferences.automaticallyCheckLauncherUpdates
         updaterController = controller
         controller.startUpdater()
     }

@@ -177,7 +177,10 @@ jobs:
           test -s ".build/release/appcast.xml"
           grep -F "<enclosure" .build/release/appcast.xml
           grep -F "sparkle:edSignature=" .build/release/appcast.xml
-          grep -F "Fixed runtime update checks" .build/release/appcast.xml
+          test -f ".build/release/${DMG_NAME%.dmg}.md"
+          RELEASE_NOTES_PROBE="$(awk '/^- / { sub(/^- /, ""); print; exit }' "ReleaseNotes/$RELEASE_TAG.md")"
+          test -n "$RELEASE_NOTES_PROBE"
+          grep -F "$RELEASE_NOTES_PROBE" .build/release/appcast.xml
           if [[ "$RELEASE_SIGNING_MODE" == "developer-id" ]]; then
             spctl --assess --type open --context context:primary-signature -v ".build/release/$DMG_NAME"
           else

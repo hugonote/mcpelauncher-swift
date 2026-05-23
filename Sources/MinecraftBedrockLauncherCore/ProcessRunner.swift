@@ -47,7 +47,11 @@ public struct FoundationProcessRunner: ProcessRunning {
 
         var mergedEnvironment = ProcessInfo.processInfo.environment
         for (key, value) in environment {
-            mergedEnvironment[key] = value
+            if value.isEmpty {
+                mergedEnvironment.removeValue(forKey: key)
+            } else {
+                mergedEnvironment[key] = value
+            }
         }
         process.environment = mergedEnvironment
 

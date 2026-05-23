@@ -292,7 +292,7 @@ struct ContentView: View {
             VStack(spacing: 5) {
                 Text("Keychain Access Needed")
                     .font(.title3.weight(.semibold))
-                Text("Authorization lets the launcher check Google Play and pass credentials to Minecraft")
+                Text("Authorization lets the launcher check Google Play and download Minecraft")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

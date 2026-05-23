@@ -36,6 +36,80 @@ final class GPlayCLIClientTests: XCTestCase {
         XCTAssertEqual(credential.email, "user@example.com")
         XCTAssertEqual(credential.masterToken, "master-token")
         XCTAssertEqual(credential.userID, "user-id")
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: temp.url
+                    .appendingPathComponent("state", isDirectory: true)
+                    .appendingPathComponent("playdl.conf", isDirectory: false)
+                    .path
+            )
+        )
+    }
+
+    func testAuthRemovesSavedTokenWhenGPlayverFails() throws {
+        let temp = try TemporaryDirectory()
+        let gplayverURL = temp.url.appendingPathComponent("gplayver")
+        let gplaydlURL = temp.url.appendingPathComponent("gplaydl")
+        try writeExecutable(gplayverURL)
+        try writeExecutable(gplaydlURL)
+        let stateURL = temp.url.appendingPathComponent("state", isDirectory: true)
+        let configURL = stateURL.appendingPathComponent("playdl.conf", isDirectory: false)
+
+        let runner = MockProcessRunner { _, _, _, currentDirectoryURL, _ in
+            let configURL = try XCTUnwrap(currentDirectoryURL)
+                .appendingPathComponent("playdl.conf", isDirectory: false)
+            try "user_email = user@example.com\nuser_token = master-token\n"
+                .write(to: configURL, atomically: true, encoding: .utf8)
+            return ProcessResult(status: 1, stdout: Data(), stderr: Data("auth failed".utf8))
+        }
+        let client = GPlayCLIClient(
+            gplayverURL: gplayverURL,
+            gplaydlURL: gplaydlURL,
+            stateDirectoryURL: stateURL,
+            processRunner: runner
+        )
+
+        XCTAssertThrowsError(
+            try client.auth(
+                GooglePlayAuthRequest(accountIdentifier: "user@example.com", userID: "user-id", oauthToken: "oauth-token")
+            )
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configURL.path))
+    }
+
+    func testAuthDoesNotReuseStaleSavedTokenWhenGPlayverWritesNothing() throws {
+        let temp = try TemporaryDirectory()
+        let gplayverURL = temp.url.appendingPathComponent("gplayver")
+        let gplaydlURL = temp.url.appendingPathComponent("gplaydl")
+        try writeExecutable(gplayverURL)
+        try writeExecutable(gplaydlURL)
+        let stateURL = temp.url.appendingPathComponent("state", isDirectory: true)
+        let configURL = stateURL.appendingPathComponent("playdl.conf", isDirectory: false)
+        try FileManager.default.createDirectory(at: stateURL, withIntermediateDirectories: true)
+        try "user_email = stale@example.com\nuser_token = stale-token\n"
+            .write(to: configURL, atomically: true, encoding: .utf8)
+
+        let runner = MockProcessRunner { _, _, _, _, _ in
+            ProcessResult(status: 0, stdout: Data(), stderr: Data())
+        }
+        let client = GPlayCLIClient(
+            gplayverURL: gplayverURL,
+            gplaydlURL: gplaydlURL,
+            stateDirectoryURL: stateURL,
+            processRunner: runner
+        )
+
+        XCTAssertThrowsError(
+            try client.auth(
+                GooglePlayAuthRequest(accountIdentifier: "user@example.com", userID: "user-id", oauthToken: "oauth-token")
+            )
+        ) { error in
+            guard case LauncherError.googlePlayCredentialNotSaved(let url) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertEqual(url, configURL)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configURL.path))
     }
 
     func testLatestRunsGPlayverAndParsesVersionOutput() throws {

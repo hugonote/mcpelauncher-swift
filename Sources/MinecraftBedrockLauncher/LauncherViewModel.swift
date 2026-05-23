@@ -567,7 +567,9 @@ final class LauncherViewModel: ObservableObject {
             let launcher = RuntimeLauncher(processRunner: processRunner)
             statusText = "Launching \(selectedVersion.versionName)"
             let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
-            let googleCredential = try loadStoredCredentialIfNeeded()
+            guard let googleCredential = try loadStoredCredentialIfNeeded() else {
+                throw LauncherError.missingCredential
+            }
             let logURL = captureLog ? launchLogURL(for: selectedVersion) : nil
             let dataPath = paths.minecraftDataURL
             let cachePath = paths.minecraftCacheURL
@@ -620,7 +622,7 @@ final class LauncherViewModel: ObservableObject {
         dataPath: URL,
         cachePath: URL,
         credentialsHelperDirectory: URL,
-        googleCredential: GoogleCredential?,
+        googleCredential: GoogleCredential,
         detail: String,
         captureLog: Bool,
         maxAttempts: Int = 3
@@ -760,10 +762,7 @@ final class LauncherViewModel: ObservableObject {
         if let override = ProcessInfo.processInfo.environment["MCPELAUNCHER_CREDENTIALS_HELPER_PATH"], !override.isEmpty {
             return URL(fileURLWithPath: override)
         }
-        return Bundle.main.bundleURL
-            .appendingPathComponent("Contents", isDirectory: true)
-            .appendingPathComponent("Helpers", isDirectory: true)
-            .appendingPathComponent("mcpelauncher-ui-qt", isDirectory: false)
+        return bundledHelperURL(named: "mcpelauncher-ui-qt")
     }
 
     private func runtimeURL() -> URL {

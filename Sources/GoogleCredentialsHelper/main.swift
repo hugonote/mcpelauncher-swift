@@ -12,21 +12,20 @@ guard arguments.contains("--request-google-credentials") else {
     exit(2)
 }
 
-let environment = ProcessInfo.processInfo.environment
-if let email = environment["MCPELAUNCHER_GOOGLE_EMAIL"],
-   let token = environment["MCPELAUNCHER_GOOGLE_TOKEN"],
-   !email.isEmpty,
-   !token.isEmpty {
-    emitCredential(GoogleCredential(email: email, masterToken: token))
-}
-
 do {
-    if let credential = try KeychainCredentialStore().loadCredential() {
+    if let credential = try GoogleCredentialFileTransfer.credentialFromEnvironment() {
         emitCredential(credential)
     }
-    FileHandle.standardError.write(Data("No Google Play credential is available.\n".utf8))
+    let environment = ProcessInfo.processInfo.environment
+    if let email = environment["MCPELAUNCHER_GOOGLE_EMAIL"],
+       let token = environment["MCPELAUNCHER_GOOGLE_TOKEN"],
+       !email.isEmpty,
+       !token.isEmpty {
+        emitCredential(GoogleCredential(email: email, masterToken: token))
+    }
+    FileHandle.standardError.write(Data("No Google Play credential was provided by the launcher.\n".utf8))
     exit(1)
 } catch {
-    FileHandle.standardError.write(Data("Failed to read Google Play credential: \(error.localizedDescription)\n".utf8))
+    FileHandle.standardError.write(Data("Failed to read provided Google Play credential: \(error.localizedDescription)\n".utf8))
     exit(1)
 }

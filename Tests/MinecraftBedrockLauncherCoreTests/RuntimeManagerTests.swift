@@ -182,11 +182,18 @@ final class RuntimeManagerTests: XCTestCase {
         final class CaptureBox: @unchecked Sendable {
             var arguments: [String] = []
             var environment: [String: String] = [:]
+            var credentialFromFile: GoogleCredential?
+            var credentialFilePath: String?
         }
         let capture = CaptureBox()
         let runner = MockProcessRunner { _, arguments, _, _, environment in
             capture.arguments = arguments
             capture.environment = environment
+            if let path = environment[GoogleCredentialFileTransfer.environmentKey], !path.isEmpty {
+                capture.credentialFilePath = path
+                let data = try Data(contentsOf: URL(fileURLWithPath: path))
+                capture.credentialFromFile = try JSONDecoder().decode(GoogleCredential.self, from: data)
+            }
             return ProcessResult(status: 0, stdout: Data(), stderr: Data())
         }
         let version = InstalledVersion(versionName: "1.26.20.4", versionCode: 972602004, installPath: versionURL)
@@ -209,8 +216,15 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertTrue(capture.arguments.contains("-dc"))
         XCTAssertTrue(capture.arguments.contains(cacheURL.path))
         XCTAssertEqual(capture.environment["XDG_DATA_DIRS"]?.components(separatedBy: ":").first, runtimeURL.appendingPathComponent("Resources").path)
-        XCTAssertEqual(capture.environment["MCPELAUNCHER_GOOGLE_EMAIL"], "u@example.com")
-        XCTAssertEqual(capture.environment["MCPELAUNCHER_GOOGLE_TOKEN"], "master")
+        XCTAssertEqual(capture.environment["MCPELAUNCHER_GOOGLE_EMAIL"], "")
+        XCTAssertEqual(capture.environment["MCPELAUNCHER_GOOGLE_TOKEN"], "")
+        XCTAssertEqual(capture.credentialFromFile?.email, "u@example.com")
+        XCTAssertEqual(capture.credentialFromFile?.masterToken, "master")
+        XCTAssertNotNil(capture.credentialFilePath)
+        XCTAssertFalse(capture.credentialFilePath?.contains("master") ?? true)
+        if let credentialFilePath = capture.credentialFilePath {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: credentialFilePath))
+        }
         XCTAssertEqual(capture.environment["PATH"]?.components(separatedBy: ":").first, helpersURL.path)
     }
 
@@ -226,7 +240,7 @@ final class RuntimeManagerTests: XCTestCase {
         let runner = MockProcessRunner { _, _, _, _, _ in
             ProcessResult(
                 status: 6,
-                stdout: Data("stdout line".utf8),
+                stdout: Data("stdout line\nCRED=u@example.com:master-token\n".utf8),
                 stderr: Data("Failed to find data file: lib/arm64-v8a/libc.so".utf8)
             )
         }
@@ -241,11 +255,46 @@ final class RuntimeManagerTests: XCTestCase {
             XCTAssertEqual(status, 6)
             XCTAssertEqual(capturedLogURL, logURL)
             XCTAssertTrue(outputTail.contains("Failed to find data file"))
+            XCTAssertFalse(outputTail.contains("master-token"))
+            XCTAssertTrue(outputTail.contains("CRED=<redacted>"))
         }
         let log = try String(contentsOf: logURL)
         XCTAssertTrue(log.contains("status: 6"))
         XCTAssertTrue(log.contains("stdout line"))
         XCTAssertTrue(log.contains("Failed to find data file"))
+        XCTAssertFalse(log.contains("master-token"))
+        XCTAssertTrue(log.contains("CRED=<redacted>"))
+    }
+
+    func testDetachedLaunchOmitsProcessOutputWhenCredentialHelperMayBeRequested() throws {
+        let temp = try TemporaryDirectory()
+        let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)
+        let executableURL = runtimeURL.appendingPathComponent("MacOS/mcpelauncher-client-arm64-v8a", isDirectory: false)
+        let versionURL = temp.url.appendingPathComponent("Game", isDirectory: true)
+        let helpersURL = temp.url.appendingPathComponent("Helpers", isDirectory: true)
+        let logURL = temp.url.appendingPathComponent("Logs/launch.log", isDirectory: false)
+        try writeExecutable(
+            executableURL,
+            contents: """
+            #!/bin/zsh
+            print 'CRED=u@example.com:master-token'
+            """
+        )
+        try FileManager.default.createDirectory(at: versionURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: helpersURL, withIntermediateDirectories: true)
+        let version = InstalledVersion(versionName: "1.26.21.1", versionCode: 972602101, installPath: versionURL)
+
+        try RuntimeLauncher().launchDetached(
+            runtimePath: runtimeURL,
+            version: version,
+            credentialsHelperDirectory: helpersURL,
+            googleCredential: GoogleCredential(email: "u@example.com", masterToken: "master"),
+            logURL: logURL
+        )
+
+        let log = try String(contentsOf: logURL)
+        XCTAssertTrue(log.contains("omitted because Google credentials may pass through the launcher helper protocol"))
+        XCTAssertFalse(log.contains("master-token"))
     }
 
     func testRuntimeWarmUpTerminatesAfterPairIPLoads() throws {

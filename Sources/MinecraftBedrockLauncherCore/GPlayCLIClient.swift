@@ -26,6 +26,11 @@ public struct GPlayCLIClient: GooglePlayDownloading, @unchecked Sendable {
 
     public func auth(_ request: GooglePlayAuthRequest) throws -> GoogleCredential {
         let deviceConfigURL = try prepareState(abi: "arm64-v8a")
+        let configURL = playDLConfigURL()
+        if fileManager.fileExists(atPath: configURL.path) {
+            try fileManager.removeItem(at: configURL)
+        }
+        defer { try? fileManager.removeItem(at: configURL) }
         let input = "2\n\(request.oauthToken)\nY\n".data(using: .utf8)
         _ = try runTool(
             command: "gplayver auth",
@@ -40,7 +45,6 @@ public struct GPlayCLIClient: GooglePlayDownloading, @unchecked Sendable {
             input: input
         )
 
-        let configURL = playDLConfigURL()
         let config = try readPlayDLConfig(at: configURL)
         guard let token = config.userToken, !token.isEmpty else {
             throw LauncherError.googlePlayCredentialNotSaved(configURL)

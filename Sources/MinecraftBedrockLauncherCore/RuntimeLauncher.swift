@@ -46,9 +46,19 @@ public struct RuntimeLauncher: @unchecked Sendable {
 
         let currentDirectoryURL = runtimeWorkingDirectory(for: executableURL, runtimePath: runtimePath)
 
+        let credentialFileURL = try googleCredential.map {
+            try GoogleCredentialFileTransfer.writeCredential($0, fileManager: fileManager)
+        }
+        defer {
+            GoogleCredentialFileTransfer.removeCredentialFile(at: credentialFileURL, fileManager: fileManager)
+        }
+
         var environment = [
             "SDL_AUDIODRIVER": ProcessInfo.processInfo.environment["SDL_AUDIODRIVER"] ?? "coreaudio",
-            "AUDIO_SAMPLE_RATE": ProcessInfo.processInfo.environment["AUDIO_SAMPLE_RATE"] ?? "48000"
+            "AUDIO_SAMPLE_RATE": ProcessInfo.processInfo.environment["AUDIO_SAMPLE_RATE"] ?? "48000",
+            "MCPELAUNCHER_GOOGLE_EMAIL": "",
+            "MCPELAUNCHER_GOOGLE_TOKEN": "",
+            GoogleCredentialFileTransfer.environmentKey: ""
         ]
         let xdgRuntimeDataURL = runtimePath.appendingPathComponent("Resources/mcpelauncher", isDirectory: true)
         if fileManager.fileExists(atPath: xdgRuntimeDataURL.path) {
@@ -62,9 +72,8 @@ public struct RuntimeLauncher: @unchecked Sendable {
             let existingPath = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
             environment["PATH"] = credentialsHelperDirectory.path + ":" + existingPath
         }
-        if let googleCredential {
-            environment["MCPELAUNCHER_GOOGLE_EMAIL"] = googleCredential.email
-            environment["MCPELAUNCHER_GOOGLE_TOKEN"] = googleCredential.masterToken
+        if let credentialFileURL {
+            environment[GoogleCredentialFileTransfer.environmentKey] = credentialFileURL.path
         }
 
         let result = try processRunner.run(
@@ -111,7 +120,12 @@ public struct RuntimeLauncher: @unchecked Sendable {
             googleCredential: googleCredential
         )
 
-        let outputHandle = try writeDetachedLaunchLog(command, logURL: logURL)
+        let mayExposeGoogleCredentials = googleCredential != nil
+        let outputHandle = try writeDetachedLaunchLog(
+            command,
+            logURL: logURL,
+            capturesProcessOutput: !mayExposeGoogleCredentials
+        )
 
         let process = Process()
         process.executableURL = command.executableURL
@@ -121,7 +135,12 @@ public struct RuntimeLauncher: @unchecked Sendable {
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = outputHandle ?? FileHandle.nullDevice
         process.standardError = outputHandle ?? FileHandle.nullDevice
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            GoogleCredentialFileTransfer.removeCredentialFile(at: command.credentialFileURL, fileManager: fileManager)
+            throw error
+        }
     }
 
     public func warmUpFirstLaunch(
@@ -144,6 +163,9 @@ public struct RuntimeLauncher: @unchecked Sendable {
             credentialsHelperDirectory: credentialsHelperDirectory,
             googleCredential: googleCredential
         )
+        defer {
+            GoogleCredentialFileTransfer.removeCredentialFile(at: command.credentialFileURL, fileManager: fileManager)
+        }
         command.arguments += ["-ww", "1", "-wh", "1"]
 
         let process = Process()
@@ -294,6 +316,9 @@ public struct RuntimeLauncher: @unchecked Sendable {
         let currentDirectoryURL = runtimeWorkingDirectory(for: executableURL, runtimePath: runtimePath)
 
         var environment = ProcessInfo.processInfo.environment
+        environment.removeValue(forKey: "MCPELAUNCHER_GOOGLE_EMAIL")
+        environment.removeValue(forKey: "MCPELAUNCHER_GOOGLE_TOKEN")
+        environment.removeValue(forKey: GoogleCredentialFileTransfer.environmentKey)
         environment["SDL_AUDIODRIVER"] = ProcessInfo.processInfo.environment["SDL_AUDIODRIVER"] ?? "coreaudio"
         environment["AUDIO_SAMPLE_RATE"] = ProcessInfo.processInfo.environment["AUDIO_SAMPLE_RATE"] ?? "48000"
 
@@ -309,16 +334,19 @@ public struct RuntimeLauncher: @unchecked Sendable {
             let existingPath = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
             environment["PATH"] = credentialsHelperDirectory.path + ":" + existingPath
         }
-        if let googleCredential {
-            environment["MCPELAUNCHER_GOOGLE_EMAIL"] = googleCredential.email
-            environment["MCPELAUNCHER_GOOGLE_TOKEN"] = googleCredential.masterToken
+        let credentialFileURL = try googleCredential.map {
+            try GoogleCredentialFileTransfer.writeCredential($0, fileManager: fileManager)
+        }
+        if let credentialFileURL {
+            environment[GoogleCredentialFileTransfer.environmentKey] = credentialFileURL.path
         }
 
         return LaunchCommand(
             executableURL: executableURL,
             arguments: arguments,
             currentDirectoryURL: currentDirectoryURL,
-            environment: environment
+            environment: environment,
+            credentialFileURL: credentialFileURL
         )
     }
 
@@ -342,7 +370,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         }
         let environmentText = environment
             .sorted { $0.key < $1.key }
-            .map { "\($0.key)=\($0.value)" }
+            .map { "\($0.key)=\(Self.redactedEnvironmentValue(key: $0.key, value: $0.value))" }
             .joined(separator: "\n")
         let text = """
         executable: \(executableURL.path)
@@ -354,19 +382,22 @@ public struct RuntimeLauncher: @unchecked Sendable {
         \(environmentText)
 
         stdout:
-        \(result.stdoutString)
+        \(Self.redactedText(result.stdoutString))
 
         stderr:
-        \(result.stderrString)
+        \(Self.redactedText(result.stderrString))
         """
         try fileManager.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: logURL, atomically: true, encoding: .utf8)
     }
 
-    private func writeDetachedLaunchLog(_ command: LaunchCommand, logURL: URL?) throws -> FileHandle? {
+    private func writeDetachedLaunchLog(_ command: LaunchCommand, logURL: URL?, capturesProcessOutput: Bool) throws -> FileHandle? {
         guard let logURL else {
             return nil
         }
+        let outputNote = capturesProcessOutput
+            ? ""
+            : "omitted because Google credentials may pass through the launcher helper protocol\n"
         let text = """
         executable: \(command.executableURL.path)
         arguments: \(command.arguments.joined(separator: " "))
@@ -374,10 +405,13 @@ public struct RuntimeLauncher: @unchecked Sendable {
         status: detached
 
         stdout/stderr:
-
+        \(outputNote)
         """
         try fileManager.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: logURL, atomically: true, encoding: .utf8)
+        guard capturesProcessOutput else {
+            return nil
+        }
         let handle = try FileHandle(forWritingTo: logURL)
         try handle.seekToEnd()
         return handle
@@ -399,7 +433,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         status: warmup \(status)
 
         stdout/stderr:
-        \(output)
+        \(Self.redactedText(output))
         """
         try fileManager.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: logURL, atomically: true, encoding: .utf8)
@@ -428,10 +462,30 @@ public struct RuntimeLauncher: @unchecked Sendable {
 
     private static func outputTail(stdout: String, stderr: String) -> String {
         let output = [stdout, stderr].filter { !$0.isEmpty }.joined(separator: "\n")
-        guard output.count > 4_000 else {
-            return output
+        let redacted = redactedText(output)
+        guard redacted.count > 4_000 else {
+            return redacted
         }
-        return String(output.suffix(4_000))
+        return String(redacted.suffix(4_000))
+    }
+
+    private static func redactedText(_ text: String) -> String {
+        text.replacingOccurrences(
+            of: #"(?m)CRED=.*$"#,
+            with: "CRED=<redacted>",
+            options: .regularExpression
+        )
+    }
+
+    private static func redactedEnvironmentValue(key: String, value: String) -> String {
+        switch key {
+        case "MCPELAUNCHER_GOOGLE_EMAIL",
+             "MCPELAUNCHER_GOOGLE_TOKEN",
+             GoogleCredentialFileTransfer.environmentKey:
+            return value.isEmpty ? "" : "<redacted>"
+        default:
+            return value
+        }
     }
 }
 
@@ -440,6 +494,7 @@ private struct LaunchCommand {
     var arguments: [String]
     var currentDirectoryURL: URL
     var environment: [String: String]
+    var credentialFileURL: URL?
 }
 
 private final class RuntimeWarmUpOutputTail: @unchecked Sendable {

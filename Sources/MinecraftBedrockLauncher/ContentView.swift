@@ -306,7 +306,7 @@ struct ContentView: View {
             } label: {
                 Label("Retry", systemImage: "arrow.clockwise")
                     .font(.body.weight(.semibold))
-                    .frame(width: primaryButtonWidth)
+                    .frame(width: compactButtonWidth)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -339,7 +339,7 @@ struct ContentView: View {
             } label: {
                 Label("Close", systemImage: "xmark")
                     .font(.body.weight(.semibold))
-                    .frame(width: primaryButtonWidth)
+                    .frame(width: compactButtonWidth)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -369,7 +369,7 @@ struct ContentView: View {
             } label: {
                 Label("Retry", systemImage: "arrow.clockwise")
                     .font(.body.weight(.semibold))
-                    .frame(width: primaryButtonWidth)
+                    .frame(width: compactButtonWidth)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -706,6 +706,10 @@ struct ContentView: View {
 
     private var primaryButtonWidth: CGFloat {
         primaryButtonTitle == "Download Runtime" ? 172 : 96
+    }
+
+    private var compactButtonWidth: CGFloat {
+        96
     }
 
     private var shouldCapturePlayLog: Bool {

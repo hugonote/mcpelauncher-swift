@@ -513,7 +513,8 @@ final class LauncherViewModel: ObservableObject {
                     cachePath: cachePath,
                     credentialsHelperDirectory: credentialsHelperDirectory,
                     googleCredential: credential,
-                    detail: "Preparing first launch"
+                    detail: "Preparing first launch",
+                    captureLog: false
                 )
             }
             try removeObsoleteMinecraftFiles(keeping: installed)
@@ -549,7 +550,7 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    func playSelected() async {
+    func playSelected(captureLog: Bool = false) async {
         do {
             errorText = nil
             isBlockingNetworkUnavailable = false
@@ -567,7 +568,7 @@ final class LauncherViewModel: ObservableObject {
             statusText = "Launching \(selectedVersion.versionName)"
             let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
             let googleCredential = try loadStoredCredentialIfNeeded()
-            let logURL = launchLogURL(for: selectedVersion)
+            let logURL = captureLog ? launchLogURL(for: selectedVersion) : nil
             let dataPath = paths.minecraftDataURL
             let cachePath = paths.minecraftCacheURL
             try applyRuntimeClientPreferences(dataPath: dataPath)
@@ -581,7 +582,8 @@ final class LauncherViewModel: ObservableObject {
                     cachePath: cachePath,
                     credentialsHelperDirectory: credentialsHelperDirectory,
                     googleCredential: googleCredential,
-                    detail: "Preparing first launch"
+                    detail: "Preparing first launch",
+                    captureLog: captureLog
                 )
                 statusText = "Launching \(selectedVersion.versionName)"
             }
@@ -599,7 +601,11 @@ final class LauncherViewModel: ObservableObject {
             }
             NSApplication.shared.terminate(nil)
             errorText = nil
-            statusText = "Minecraft exited. Log: \(logURL.path)"
+            if let logURL {
+                statusText = "Minecraft exited. Log: \(logURL.path)"
+            } else {
+                statusText = "Minecraft exited."
+            }
         } catch {
             downloadState = DownloadState(versionName: selectedVersion?.versionName, phase: .failed, error: error.localizedDescription)
             show(error)
@@ -616,6 +622,7 @@ final class LauncherViewModel: ObservableObject {
         credentialsHelperDirectory: URL,
         googleCredential: GoogleCredential?,
         detail: String,
+        captureLog: Bool,
         maxAttempts: Int = 3
     ) async throws {
         var lastWarmUpLogURL: URL?
@@ -628,7 +635,7 @@ final class LauncherViewModel: ObservableObject {
             )
             statusText = detail
 
-            let warmUpLogURL = firstLaunchWarmUpLogURL(for: version, attempt: attempt)
+            let warmUpLogURL = captureLog ? firstLaunchWarmUpLogURL(for: version, attempt: attempt) : nil
             lastWarmUpLogURL = warmUpLogURL
             let result = try await runOffMain {
                 try launcher.warmUpFirstLaunch(

@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var isShowingVersionInfo = false
     @State private var isStartupComplete = false
     @State private var isTitleIconVisible = false
+    @State private var isOptionKeyPressed = false
+    @State private var modifierFlagsMonitor: Any?
     @State private var window: NSWindow?
     @Environment(\.openSettings) private var openSettings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -68,7 +70,11 @@ struct ContentView: View {
         .onChange(of: model.runtimeState) { _, _ in
             updateDockProgress()
         }
+        .onAppear {
+            installModifierFlagsMonitor()
+        }
         .onDisappear {
+            removeModifierFlagsMonitor()
             DockProgressController.shared.clear()
         }
         .task(id: window != nil) {
@@ -396,6 +402,8 @@ struct ContentView: View {
                 Label(primaryButtonTitle, systemImage: primaryButtonIcon)
                     .font(.body.weight(.semibold))
                     .frame(width: primaryButtonWidth)
+                    .contentTransition(.opacity)
+                    .animation(.easeOut(duration: 0.12), value: primaryButtonTitle)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -411,7 +419,7 @@ struct ContentView: View {
         let isDisabled = model.isGooglePlayBusy || model.isRuntimeBusy
 
         return Button {
-            Task { await model.playSelected() }
+            Task { await model.playSelected(captureLog: shouldCapturePlayLog) }
         } label: {
             Image(systemName: "play.fill")
                 .font(.system(size: 12, weight: .semibold))
@@ -430,7 +438,7 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .frame(width: 30, height: 30)
         .fixedSize()
-        .help("Play installed version")
+        .help(shouldCapturePlayLog ? "Play installed version and write launch log" : "Play installed version")
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.45 : 1)
     }
@@ -630,7 +638,7 @@ struct ContentView: View {
         }
         if model.canUseSelectedVersion {
             if model.isRuntimeReady {
-                await model.playSelected()
+                await model.playSelected(captureLog: shouldCapturePlayLog)
             } else {
                 model.startRuntimeInstall()
             }
@@ -654,7 +662,10 @@ struct ContentView: View {
             return "Update"
         }
         if model.canUseSelectedVersion {
-            return model.isRuntimeReady ? "Play" : "Download Runtime"
+            if model.isRuntimeReady {
+                return shouldCapturePlayLog ? "Play & Log" : "Play"
+            }
+            return "Download Runtime"
         }
         if model.credential == nil {
             return "Sign in"
@@ -695,6 +706,30 @@ struct ContentView: View {
 
     private var primaryButtonWidth: CGFloat {
         primaryButtonTitle == "Download Runtime" ? 172 : 96
+    }
+
+    private var shouldCapturePlayLog: Bool {
+        isOptionKeyPressed || NSEvent.modifierFlags.contains(.option)
+    }
+
+    private func installModifierFlagsMonitor() {
+        isOptionKeyPressed = NSEvent.modifierFlags.contains(.option)
+        guard modifierFlagsMonitor == nil else {
+            return
+        }
+        modifierFlagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            isOptionKeyPressed = event.modifierFlags.contains(.option)
+            return event
+        }
+    }
+
+    private func removeModifierFlagsMonitor() {
+        guard let modifierFlagsMonitor else {
+            return
+        }
+        NSEvent.removeMonitor(modifierFlagsMonitor)
+        self.modifierFlagsMonitor = nil
+        isOptionKeyPressed = false
     }
 
     private var isPrimaryButtonDisabled: Bool {

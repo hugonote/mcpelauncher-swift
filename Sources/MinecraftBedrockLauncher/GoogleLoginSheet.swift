@@ -9,6 +9,8 @@ struct GoogleLoginSheet: View {
     @State private var consentAccepted = false
     @State private var setupFinished = false
     @State private var isCompleting = false
+    @State private var settleTask: Task<Void, Never>?
+    @State private var completionTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -18,6 +20,7 @@ struct GoogleLoginSheet: View {
                     .fontWeight(.semibold)
                 Spacer()
                 Button {
+                    cancelLogin()
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
@@ -31,13 +34,11 @@ struct GoogleLoginSheet: View {
                 completeIfReady()
             } onAccountIdentifier: { identifier in
                 accountIdentifier = identifier
+                completeIfReady()
             } onConsentAccepted: {
                 consentAccepted = true
                 completeAfterGoogleSettles()
             } onSetupFinished: {
-                guard !capturedOAuthToken.isEmpty else {
-                    return
-                }
                 setupFinished = true
                 completeAfterGoogleSettles()
             }
@@ -54,6 +55,9 @@ struct GoogleLoginSheet: View {
             }
         }
         .padding(20)
+        .onDisappear {
+            cancelLogin()
+        }
     }
 
     private var statusText: String {
@@ -63,6 +67,9 @@ struct GoogleLoginSheet: View {
         if capturedOAuthToken.isEmpty {
             return "Finish the Google prompt. The launcher will close this window automatically."
         }
+        if accountIdentifier.isEmpty {
+            return "Waiting for Google account details"
+        }
         if consentAccepted || setupFinished {
             return "Finishing Google sign in"
         }
@@ -70,23 +77,48 @@ struct GoogleLoginSheet: View {
     }
 
     private func completeAfterGoogleSettles() {
-        Task { @MainActor in
+        settleTask?.cancel()
+        settleTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
             completeIfReady()
         }
     }
 
     private func completeIfReady() {
-        guard !isCompleting, !capturedOAuthToken.isEmpty, consentAccepted || setupFinished else {
+        guard !isCompleting,
+              !capturedOAuthToken.isEmpty,
+              !accountIdentifier.isEmpty,
+              consentAccepted || setupFinished else {
             return
         }
         isCompleting = true
-        Task {
-            await model.completeLogin(
+        settleTask?.cancel()
+        settleTask = nil
+        completionTask = Task { @MainActor in
+            let succeeded = await model.completeLogin(
                 email: accountIdentifier,
                 userID: capturedUserID,
                 oauthToken: capturedOAuthToken
             )
+            guard !Task.isCancelled else {
+                return
+            }
+            completionTask = nil
+            isCompleting = false
+            if succeeded {
+                dismiss()
+            }
         }
+    }
+
+    private func cancelLogin() {
+        settleTask?.cancel()
+        settleTask = nil
+        completionTask?.cancel()
+        completionTask = nil
+        isCompleting = false
     }
 }

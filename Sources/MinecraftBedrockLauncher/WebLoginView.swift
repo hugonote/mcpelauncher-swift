@@ -33,6 +33,12 @@ struct WebLoginView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {}
 
+    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.stopLoading()
+        webView.configuration.websiteDataStore.httpCookieStore.remove(coordinator)
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "googleLogin")
+    }
+
     static let bridgeScript = WKUserScript(
         source: """
         (function() {

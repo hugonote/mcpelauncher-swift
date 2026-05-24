@@ -311,11 +311,11 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    func completeLogin(email: String, userID: String, oauthToken: String) async {
+    func completeLogin(email: String, userID: String, oauthToken: String) async -> Bool {
         do {
+            try Task.checkCancellation()
             errorText = nil
             updateWarningText = nil
-            showingLogin = false
             downloadState = DownloadState(phase: .authenticating)
             statusText = "Completing Google Play sign in"
             let googlePlay = makeGooglePlayClient()
@@ -325,6 +325,7 @@ final class LauncherViewModel: ObservableObject {
                 oauthToken: oauthToken
             )
             let savedCredential = try await runOffMain { try googlePlay.auth(request) }
+            try Task.checkCancellation()
             try credentialStore.saveCredential(savedCredential)
             credential = savedCredential
             credentialAccessDenied = false
@@ -333,9 +334,19 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             statusText = "Signed in as \(displayEmail(for: savedCredential.email)). Checking latest Google Play version"
             await fetchLatest()
+            return true
+        } catch is CancellationError {
+            if downloadState.phase == .authenticating {
+                downloadState = DownloadState()
+            }
+            if credential == nil {
+                statusText = selectedVersion == nil ? "Sign in to Google Play to download Minecraft." : "Ready."
+            }
+            return false
         } catch {
             downloadState = DownloadState(versionName: latestVersion?.versionName, phase: .failed, error: error.localizedDescription)
             show(error)
+            return false
         }
     }
 

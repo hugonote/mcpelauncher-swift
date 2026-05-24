@@ -15,15 +15,18 @@ public struct RuntimeLauncher: @unchecked Sendable {
     private let fileManager: FileManager
     private let processRunner: ProcessRunning
     private let applicationLauncher: any RuntimeApplicationLaunching
+    private let detachedCredentialCleanupDelay: TimeInterval
 
     public init(
         fileManager: FileManager = .default,
         processRunner: ProcessRunning = FoundationProcessRunner(),
-        applicationLauncher: any RuntimeApplicationLaunching = NSWorkspaceRuntimeApplicationLauncher()
+        applicationLauncher: any RuntimeApplicationLaunching = NSWorkspaceRuntimeApplicationLauncher(),
+        detachedCredentialCleanupDelay: TimeInterval = 120
     ) {
         self.fileManager = fileManager
         self.processRunner = processRunner
         self.applicationLauncher = applicationLauncher
+        self.detachedCredentialCleanupDelay = detachedCredentialCleanupDelay
     }
 
     public func launch(
@@ -163,6 +166,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
                 GoogleCredentialFileTransfer.removeCredentialFile(at: command.credentialFileURL, fileManager: fileManager)
                 throw error
             }
+            scheduleDetachedCredentialCleanup(command.credentialFileURL)
             return
         }
 
@@ -186,6 +190,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
             GoogleCredentialFileTransfer.removeCredentialFile(at: command.credentialFileURL, fileManager: fileManager)
             throw error
         }
+        scheduleDetachedCredentialCleanup(command.credentialFileURL)
     }
 
     public func warmUpFirstLaunch(
@@ -404,6 +409,14 @@ public struct RuntimeLauncher: @unchecked Sendable {
             return false
         }
         return value == "0" || value == "false" || value == "no"
+    }
+
+    private func scheduleDetachedCredentialCleanup(_ credentialFileURL: URL?) {
+        GoogleCredentialFileTransfer.scheduleCredentialFileRemoval(
+            at: credentialFileURL,
+            after: detachedCredentialCleanupDelay,
+            fileManager: fileManager
+        )
     }
 
     private func writeLaunchLog(

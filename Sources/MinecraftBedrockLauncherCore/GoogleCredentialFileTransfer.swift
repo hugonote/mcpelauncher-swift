@@ -43,4 +43,34 @@ public enum GoogleCredentialFileTransfer {
         }
         try? fileManager.removeItem(at: fileURL.deletingLastPathComponent())
     }
+
+    public static func scheduleCredentialFileRemoval(
+        at fileURL: URL?,
+        after delay: TimeInterval,
+        fileManager: FileManager = .default
+    ) {
+        guard let fileURL else {
+            return
+        }
+
+        if delay <= 0 {
+            removeCredentialFile(at: fileURL, fileManager: fileManager)
+            return
+        }
+
+        let directoryPath = fileURL.deletingLastPathComponent().path
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [
+            "-c",
+            "sleep \"$1\"; rm -rf -- \"$2\"",
+            "mcpelauncher-credential-cleanup",
+            String(delay),
+            directoryPath
+        ]
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+    }
 }

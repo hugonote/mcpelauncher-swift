@@ -400,10 +400,10 @@ struct ContentView: View {
             Button {
                 Task { await primaryAction() }
             } label: {
-                Label(primaryButtonTitle, systemImage: primaryButtonIcon)
+                primaryButtonLabel
                     .font(.body.weight(.semibold))
                     .frame(width: primaryButtonWidth)
-                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.09), value: shouldShowPlayLogPrimaryButton)
                     .animation(.easeOut(duration: 0.12), value: primaryButtonTitle)
             }
             .buttonStyle(.borderedProminent)
@@ -412,6 +412,44 @@ struct ContentView: View {
 
             if shouldShowPlaySideButton {
                 playSideButton
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var primaryButtonLabel: some View {
+        if isPrimaryPlayButton {
+            HStack(spacing: 6) {
+                playLogIcon
+                    .frame(width: shouldShowPlayLogPrimaryButton ? 24 : 16, height: 18)
+
+                HStack(spacing: 0) {
+                    Text("Play")
+                    if shouldShowPlayLogPrimaryButton {
+                        Text(" & Log")
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
+                }
+                .fixedSize(horizontal: true, vertical: false)
+            }
+            .frame(maxWidth: .infinity)
+            .clipped()
+        } else {
+            Label(primaryButtonTitle, systemImage: primaryButtonIcon)
+                .contentTransition(.opacity)
+        }
+    }
+
+    private var playLogIcon: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Image(systemName: "play.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .offset(x: shouldShowPlayLogPrimaryButton ? -2 : 0)
+            if shouldShowPlayLogPrimaryButton {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 7.5, weight: .bold))
+                    .offset(x: 4, y: 2)
+                    .transition(.scale(scale: 0.72).combined(with: .opacity))
             }
         }
     }
@@ -703,6 +741,14 @@ struct ContentView: View {
             return "arrow.clockwise"
         }
         return "arrow.down.circle"
+    }
+
+    private var shouldShowPlayLogPrimaryButton: Bool {
+        primaryButtonTitle == "Play & Log"
+    }
+
+    private var isPrimaryPlayButton: Bool {
+        primaryButtonTitle == "Play" || shouldShowPlayLogPrimaryButton
     }
 
     private var primaryButtonWidth: CGFloat {

@@ -873,7 +873,10 @@ struct ContentView: View {
     }
 
     private var shouldShowVersionInfoButton: Bool {
-        !isPurchaseRequired && !shouldShowRuntimeTitle && model.downloadState.phase != .failed
+        model.credential != nil
+            && !isPurchaseRequired
+            && !shouldShowRuntimeTitle
+            && model.downloadState.phase != .failed
     }
 
     private var runtimeInfoVersionText: String {

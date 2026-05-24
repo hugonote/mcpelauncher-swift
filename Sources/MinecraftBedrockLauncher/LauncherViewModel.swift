@@ -390,6 +390,9 @@ final class LauncherViewModel: ObservableObject {
         if !isRuntimeBusy {
             startAutomaticRuntimeUpdate()
         }
+        guard credential != nil else {
+            return
+        }
         await fetchLatest()
     }
 

@@ -73,6 +73,7 @@ final class LauncherViewModel: ObservableObject {
     private let registry: InstalledVersionRegistry
     private let processRunner: ProcessRunning
     private var didStart = false
+    private var didContinueStartupAfterWindowReveal = false
     private var didTryLoadingStoredCredential = false
     private var runtimeUpdateTask: Task<Void, Never>?
     private var runtimeSkipDelayTask: Task<Void, Never>?
@@ -110,11 +111,29 @@ final class LauncherViewModel: ObservableObject {
             return
         }
         didStart = true
-        await load()
-        await loadStoredCredentialAndFetchLatest()
+        await load(startsAutomaticRuntimeUpdate: false)
+        await loadStoredCredential()
     }
 
-    func load() async {
+    func continueStartupAfterWindowReveal() async {
+        guard didStart, !didContinueStartupAfterWindowReveal else {
+            return
+        }
+        didContinueStartupAfterWindowReveal = true
+
+        guard !credentialAccessDenied else {
+            return
+        }
+        if LauncherPreferences.automaticallyCheckRuntimeUpdates {
+            startAutomaticRuntimeUpdate()
+        }
+        guard credential != nil, LauncherPreferences.automaticallyCheckGameUpdates else {
+            return
+        }
+        await fetchLatest()
+    }
+
+    func load(startsAutomaticRuntimeUpdate: Bool = true) async {
         do {
             try paths.ensureDirectories()
             try syncRuntimeClientPreferencesFromDisk()
@@ -122,7 +141,7 @@ final class LauncherViewModel: ObservableObject {
             selectedVersion = installedVersions.first
             refreshSelectedVersionCompatibility()
             refreshInstalledRuntimeState()
-            if LauncherPreferences.automaticallyCheckRuntimeUpdates {
+            if startsAutomaticRuntimeUpdate && LauncherPreferences.automaticallyCheckRuntimeUpdates {
                 startAutomaticRuntimeUpdate()
             }
             statusText = selectedVersion == nil ? "Sign in to Google Play to download Minecraft." : "Ready."

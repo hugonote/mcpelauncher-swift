@@ -78,11 +78,14 @@ struct ContentView: View {
             DockProgressController.shared.clear()
         }
         .task(id: window != nil) {
-            guard window != nil else {
+            guard let window else {
                 return
             }
             await model.start()
             isStartupComplete = true
+            StartupWindowVisibility.shared.reveal(window)
+            await Task.yield()
+            await model.continueStartupAfterWindowReveal()
         }
     }
 

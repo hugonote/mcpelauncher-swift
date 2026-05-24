@@ -119,11 +119,12 @@ final class LauncherViewModel: ObservableObject {
         guard didStart, !didContinueStartupAfterWindowReveal else {
             return
         }
-        didContinueStartupAfterWindowReveal = true
 
         guard !credentialAccessDenied else {
             return
         }
+        didContinueStartupAfterWindowReveal = true
+
         if LauncherPreferences.automaticallyCheckRuntimeUpdates {
             startAutomaticRuntimeUpdate()
         }
@@ -187,7 +188,8 @@ final class LauncherViewModel: ObservableObject {
         errorText = nil
         updateWarningText = nil
         statusText = "Requesting Keychain access"
-        await loadStoredCredentialAndFetchLatest()
+        await loadStoredCredential()
+        await continueStartupAfterWindowReveal()
     }
 
     func signOut() {

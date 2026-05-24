@@ -900,11 +900,10 @@ struct ContentView: View {
 
     private var isPurchaseRequired: Bool {
         guard model.credential != nil,
-              model.downloadState.phase == .failed,
-              let error = model.downloadState.error ?? model.errorText else {
+              model.downloadState.phase == .failed else {
             return false
         }
-        return isMinecraftPurchaseError(error)
+        return model.activeIssue == .minecraftNotOwned
     }
 
     private var shouldFocusRuntime: Bool {
@@ -1047,7 +1046,7 @@ struct ContentView: View {
         if model.isBlockingNetworkUnavailable {
             return "No internet connection"
         }
-        if let errorText = model.errorText, isNoInternetError(errorText) {
+        if model.activeIssue?.isNetworkUnavailable == true {
             return "Offline"
         }
         if model.downloadState.phase == .failed {
@@ -1091,35 +1090,12 @@ struct ContentView: View {
     }
 
     private var isShowingCorruptedAppError: Bool {
-        if let errorText = model.errorText, isBundledHelperNotFoundError(errorText) {
-            return true
-        }
-        if model.downloadState.phase == .failed,
-           let error = model.downloadState.error,
-           isBundledHelperNotFoundError(error) {
-            return true
-        }
-        return false
+        model.activeIssue == .bundledHelperMissing
     }
 
     private func centerErrorText(for error: String) -> String {
-        if isBundledHelperNotFoundError(error) {
-            return "Application corrupted"
-        }
-        if isMinecraftPurchaseError(error) {
-            return "Minecraft not purchased"
-        }
-        if isDownloadStalledError(error) {
-            return "Download stalled"
-        }
-        if isDownloadDidNotStartError(error) {
-            return "Download did not start"
-        }
-        if isNoInternetError(error) {
-            return "No internet connection"
-        }
-        if isInterruptedConnectionError(error) {
-            return "Connection interrupted"
+        if let centerText = model.activeIssue?.centerText {
+            return centerText
         }
         return error
     }
@@ -1128,49 +1104,10 @@ struct ContentView: View {
         if model.isBlockingNetworkUnavailable {
             return "No internet connection"
         }
-        if isMinecraftPurchaseError(error) {
-            return "Purchase required"
-        }
-        if isBundledHelperNotFoundError(error) {
-            return "Application corrupted"
-        }
-        if isDownloadStalledError(error) || isDownloadDidNotStartError(error) {
-            return "Download failed"
-        }
-        if isNoInternetError(error) {
-            return "Offline"
-        }
-        if isInterruptedConnectionError(error) {
-            return "Connection interrupted"
+        if let shortText = model.activeIssue?.shortText {
+            return shortText
         }
         return error
-    }
-
-    private func isDownloadStalledError(_ error: String) -> Bool {
-        error.localizedCaseInsensitiveContains("download stalled")
-    }
-
-    private func isDownloadDidNotStartError(_ error: String) -> Bool {
-        error.localizedCaseInsensitiveContains("download did not start")
-    }
-
-    private func isNoInternetError(_ error: String) -> Bool {
-        isGooglePlayBadTokenError(error)
-            || error.localizedCaseInsensitiveContains("not connected to the internet")
-            || error.localizedCaseInsensitiveContains("cannot find host")
-            || error.localizedCaseInsensitiveContains("could not resolve host")
-            || error.localizedCaseInsensitiveContains("dns")
-    }
-
-    private func isGooglePlayBadTokenError(_ error: String) -> Bool {
-        (error.localizedCaseInsensitiveContains("gplaydl failed")
-            || error.localizedCaseInsensitiveContains("gplayver failed"))
-            && error.localizedCaseInsensitiveContains("bad token")
-    }
-
-    private func isInterruptedConnectionError(_ error: String) -> Bool {
-        error.localizedCaseInsensitiveContains("network connection was lost")
-            || error.localizedCaseInsensitiveContains("timed out")
     }
 
     private var networkUnavailableMessage: String {
@@ -1188,30 +1125,6 @@ struct ContentView: View {
             return 12
         }
         return 28
-    }
-
-    private func isMinecraftPurchaseError(_ error: String) -> Bool {
-        error.localizedCaseInsensitiveContains("minecraft is not purchased")
-    }
-
-    private func isBundledHelperNotFoundError(_ error: String) -> Bool {
-        let helperNames = [
-            "Google Play tool",
-            "gplayver",
-            "gplaydl",
-            "mcpelauncher-ui-qt",
-            "mcpelauncher-webview"
-        ]
-        let missingMarkers = [
-            "was not found",
-            "not found",
-            "no such file"
-        ]
-        return helperNames.contains { helperName in
-            error.localizedCaseInsensitiveContains(helperName)
-        } && missingMarkers.contains { marker in
-            error.localizedCaseInsensitiveContains(marker)
-        }
     }
 
     private var runtimeStatusText: String {
@@ -1331,287 +1244,4 @@ struct ContentView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " - ")
     }
 
-}
-
-private enum TitleIconBadge: Equatable {
-    case missing
-    case working
-    case updateAvailable
-
-    var accessibilityLabel: String {
-        switch self {
-        case .missing:
-            return "Version missing"
-        case .working:
-            return "Working"
-        case .updateAvailable:
-            return "Update available"
-        }
-    }
-}
-
-private struct OfflineGlobeView: View {
-    var body: some View {
-        DrawOnSymbolView(systemName: "network.slash", size: 54)
-        .frame(width: 68, height: 68)
-    }
-}
-
-private struct DrawOnSymbolView: View {
-    var systemName: String
-    var size: CGFloat
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isVisible = false
-
-    var body: some View {
-        Group {
-            if #available(macOS 26.0, *) {
-                ZStack {
-                    if isVisible {
-                        icon
-                            .transition(.symbolEffect(.drawOn.byLayer))
-                    }
-                }
-                .onAppear {
-                    guard !isVisible else {
-                        return
-                    }
-                    if reduceMotion {
-                        isVisible = true
-                        return
-                    }
-                    withAnimation {
-                        isVisible = true
-                    }
-                }
-            } else {
-                icon
-            }
-        }
-    }
-
-    private var icon: some View {
-        Image(systemName: systemName)
-            .font(.system(size: size, weight: .regular))
-            .foregroundStyle(.secondary)
-    }
-}
-
-private struct TitleIconBadgeView: View {
-    var kind: TitleIconBadge
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isRotating = false
-
-    var body: some View {
-        Group {
-            switch kind {
-            case .missing:
-                missingBadge
-            case .working:
-                workingBadge
-            case .updateAvailable:
-                updateAvailableBadge
-            }
-        }
-        .frame(width: 18, height: 18)
-        .shadow(color: .black.opacity(0.12), radius: 1.5, x: 0, y: 1)
-        .accessibilityLabel(kind.accessibilityLabel)
-        .help(kind.accessibilityLabel)
-    }
-
-    private var missingBadge: some View {
-        ZStack {
-            Circle()
-                .fill(.orange)
-
-            Image(systemName: "questionmark")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.white)
-        }
-    }
-
-    private var workingBadge: some View {
-        ZStack {
-            Circle()
-                .fill(.regularMaterial)
-                .opacity(0.85)
-
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(isRotating && !reduceMotion ? 360 : 0))
-                .animation(
-                    reduceMotion ? nil : .linear(duration: 3.4).repeatForever(autoreverses: false),
-                    value: isRotating
-                )
-                .onAppear {
-                    guard !reduceMotion else {
-                        return
-                    }
-                    isRotating = true
-                }
-                .onDisappear {
-                    isRotating = false
-                }
-        }
-    }
-
-    private var updateAvailableBadge: some View {
-        ZStack {
-            Circle()
-                .fill(.orange)
-
-            Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
-                .font(.system(size: 10, weight: .bold))
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(.white)
-        }
-    }
-}
-
-private struct VisualEffectBackground: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
-    }
-}
-
-private enum LauncherResourceLoader {
-    static func image(named name: String, fileExtension: String) -> NSImage? {
-        for url in candidateURLs(named: name, fileExtension: fileExtension) {
-            if let image = NSImage(contentsOf: url) {
-                return image
-            }
-        }
-        return nil
-    }
-
-    private static func candidateURLs(named name: String, fileExtension: String) -> [URL] {
-        let fileName = "\(name).\(fileExtension)"
-        var urls: [URL] = []
-
-        if let url = Bundle.main.url(forResource: name, withExtension: fileExtension) {
-            urls.append(url)
-        }
-
-        let resourceURL = Bundle.main.resourceURL
-        let bundleNames = [
-            "SwiftLauncher_MinecraftBedrockLauncher.bundle",
-            "MinecraftBedrockLauncher_MinecraftBedrockLauncher.bundle"
-        ]
-        for bundleName in bundleNames {
-            if let url = resourceURL?
-                .appendingPathComponent(bundleName, isDirectory: true)
-                .appendingPathComponent(fileName, isDirectory: false) {
-                urls.append(url)
-            }
-        }
-
-        if let executableURL = Bundle.main.executableURL {
-            let buildDirectoryURL = executableURL.deletingLastPathComponent()
-            for bundleName in bundleNames {
-                urls.append(
-                    buildDirectoryURL
-                        .appendingPathComponent(bundleName, isDirectory: true)
-                        .appendingPathComponent(fileName, isDirectory: false)
-                )
-            }
-        }
-
-        return urls
-    }
-}
-
-private struct WindowConfigurator: NSViewRepresentable {
-    @Binding var window: NSWindow?
-    var isVisible: Bool
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            configure(window: view.window, isVisible: isVisible, coordinator: context.coordinator)
-            window = view.window
-        }
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            configure(window: view.window, isVisible: isVisible, coordinator: context.coordinator)
-            window = view.window
-        }
-    }
-
-    private func configure(window: NSWindow?, isVisible: Bool, coordinator: Coordinator) {
-        guard let window else {
-            return
-        }
-        coordinator.observeClose(of: window)
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = true
-        window.isMovableByWindowBackground = true
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.titlebarSeparatorStyle = .none
-        window.styleMask.remove(.resizable)
-        window.styleMask.insert(.fullSizeContentView)
-        window.level = .normal
-        window.hidesOnDeactivate = false
-        StartupWindowVisibility.shared.hideIfNeeded(window)
-        let wasHidden = window.alphaValue == 0
-        window.alphaValue = isVisible ? 1 : 0
-        if isVisible && wasHidden {
-            StartupWindowVisibility.shared.reveal(window)
-        } else if isVisible {
-            window.ignoresMouseEvents = false
-        }
-    }
-
-    final class Coordinator {
-        private weak var observedWindow: NSWindow?
-        private var closeObserver: NSObjectProtocol?
-
-        deinit {
-            if let closeObserver {
-                NotificationCenter.default.removeObserver(closeObserver)
-            }
-        }
-
-        func observeClose(of window: NSWindow) {
-            guard observedWindow !== window else {
-                return
-            }
-
-            if let closeObserver {
-                NotificationCenter.default.removeObserver(closeObserver)
-            }
-
-            observedWindow = window
-            closeObserver = NotificationCenter.default.addObserver(
-                forName: NSWindow.willCloseNotification,
-                object: window,
-                queue: .main
-            ) { _ in
-                Task { @MainActor in
-                    NSApp.terminate(nil)
-                }
-            }
-        }
-    }
 }

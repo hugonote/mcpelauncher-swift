@@ -156,55 +156,12 @@ public struct RuntimeManager: @unchecked Sendable {
     ) async throws {
         var request = URLRequest(url: sourceURL, cachePolicy: .reloadIgnoringLocalCacheData)
         request.timeoutInterval = 10
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw LauncherError.runtimeInstallFailed("Runtime download returned HTTP \(http.statusCode).")
-        }
-
-        let responseSize = response.expectedContentLength > 0 ? response.expectedContentLength : nil
-        let totalBytes = expectedSize ?? responseSize
-        let start = Date()
-        var received: Int64 = 0
-        var iterator = bytes.makeAsyncIterator()
-        fileManager.createFile(atPath: destinationURL.path, contents: nil)
-        let handle = try FileHandle(forWritingTo: destinationURL)
-        defer {
-            try? handle.close()
-        }
-        var buffer = Data()
-        buffer.reserveCapacity(256 * 1024)
-
-        while let byte = try await iterator.next() {
-            try Task.checkCancellation()
-            buffer.append(byte)
-            received += 1
-            if buffer.count >= 256 * 1024 {
-                try handle.write(contentsOf: buffer)
-                buffer.removeAll(keepingCapacity: true)
-                progress(downloadProgress(bytesReceived: received, totalBytes: totalBytes, start: start))
-            }
-        }
-        if !buffer.isEmpty {
-            try handle.write(contentsOf: buffer)
-        }
-        progress(downloadProgress(bytesReceived: received, totalBytes: totalBytes, start: start))
-    }
-
-    private func downloadProgress(bytesReceived: Int64, totalBytes: Int64?, start: Date) -> DownloadProgress {
-        let elapsed = Date().timeIntervalSince(start)
-        let speed = elapsed > 0 ? Double(bytesReceived) / elapsed : nil
-        let eta: Double?
-        if let totalBytes, let speed, speed > 0, totalBytes > bytesReceived {
-            eta = Double(totalBytes - bytesReceived) / speed
-        } else {
-            eta = nil
-        }
-        return DownloadProgress(
-            bytesReceived: bytesReceived,
-            totalBytes: totalBytes,
-            speedBytesPerSecond: speed,
-            etaSeconds: eta
-        )
+        try await RuntimeFileDownloader(
+            fileManager: fileManager,
+            destinationURL: destinationURL,
+            expectedSize: expectedSize,
+            progress: progress
+        ).download(request)
     }
 
     private func fetchRelease(_ url: URL) async throws -> GitHubRelease {
@@ -513,8 +470,20 @@ public struct RuntimeManager: @unchecked Sendable {
     }
 
     private func sha256(of fileURL: URL) throws -> String {
-        let data = try Data(contentsOf: fileURL)
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let handle = try FileHandle(forReadingFrom: fileURL)
+        defer {
+            try? handle.close()
+        }
+
+        var hasher = SHA256()
+        while true {
+            let chunk = try handle.read(upToCount: 4 * 1024 * 1024) ?? Data()
+            if chunk.isEmpty {
+                break
+            }
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     static func selectRuntimeAsset(from assets: [GitHubAsset]) -> GitHubAsset? {
@@ -563,6 +532,133 @@ public struct RuntimeManager: @unchecked Sendable {
             downloadURL: downloadURL,
             sha256: manifest.sha256,
             size: manifest.size
+        )
+    }
+}
+
+private final class RuntimeFileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let fileManager: FileManager
+    private let destinationURL: URL
+    private let expectedSize: Int64?
+    private let progress: @Sendable (DownloadProgress) -> Void
+    private let start = Date()
+    private let lock = NSLock()
+    private var task: URLSessionDownloadTask?
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var completionError: Error?
+
+    init(
+        fileManager: FileManager,
+        destinationURL: URL,
+        expectedSize: Int64?,
+        progress: @escaping @Sendable (DownloadProgress) -> Void
+    ) {
+        self.fileManager = fileManager
+        self.destinationURL = destinationURL
+        self.expectedSize = expectedSize
+        self.progress = progress
+    }
+
+    func download(_ request: URLRequest) async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        defer {
+            session.invalidateAndCancel()
+        }
+
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let task = session.downloadTask(with: request)
+                lock.lock()
+                self.task = task
+                self.continuation = continuation
+                lock.unlock()
+                if Task.isCancelled {
+                    task.cancel()
+                    return
+                }
+                task.resume()
+            }
+        } onCancel: {
+            self.cancel()
+        }
+    }
+
+    private func cancel() {
+        lock.lock()
+        let task = task
+        lock.unlock()
+        task?.cancel()
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        let responseSize = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : nil
+        progress(downloadProgress(bytesReceived: totalBytesWritten, totalBytes: expectedSize ?? responseSize))
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        do {
+            if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                throw LauncherError.runtimeInstallFailed("Runtime download returned HTTP \(http.statusCode).")
+            }
+
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try fileManager.removeItem(at: destinationURL)
+            }
+            try fileManager.createDirectory(
+                at: destinationURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try fileManager.moveItem(at: location, to: destinationURL)
+        } catch {
+            lock.lock()
+            completionError = error
+            lock.unlock()
+        }
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        lock.lock()
+        let continuation = continuation
+        self.continuation = nil
+        let completionError = error ?? self.completionError
+        lock.unlock()
+
+        if let completionError {
+            continuation?.resume(throwing: completionError)
+        } else {
+            continuation?.resume()
+        }
+    }
+
+    private func downloadProgress(bytesReceived: Int64, totalBytes: Int64?) -> DownloadProgress {
+        let elapsed = Date().timeIntervalSince(start)
+        let speed = elapsed > 0 ? Double(bytesReceived) / elapsed : nil
+        let eta: Double?
+        if let totalBytes, let speed, speed > 0, totalBytes > bytesReceived {
+            eta = Double(totalBytes - bytesReceived) / speed
+        } else {
+            eta = nil
+        }
+        return DownloadProgress(
+            bytesReceived: bytesReceived,
+            totalBytes: totalBytes,
+            speedBytesPerSecond: speed,
+            etaSeconds: eta
         )
     }
 }

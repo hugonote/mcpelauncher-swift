@@ -19,16 +19,37 @@ final class LauncherViewModel: ObservableObject {
     @Published var downloadState = DownloadState()
     @Published var runtimeState = RuntimeState()
     @Published var statusText = "Ready"
-    @Published var errorText: String?
+    @Published private var errorState = LauncherErrorState()
     @Published var updateWarningText: String?
     @Published var credentialAccessDenied = false
     @Published var selectedVersionWarning: String?
     @Published var showingLogin = false
     @Published var canSkipRuntimeUpdateCheck = false
-    @Published var isBlockingNetworkUnavailable = false
     @Published var isDeletingRuntime = false
     @Published var isDeletingGame = false
     @Published var isDeletingData = false
+
+    var activeIssue: LauncherIssue? {
+        errorState.activeIssue
+    }
+
+    var errorText: String? {
+        get {
+            errorState.errorText
+        }
+        set {
+            reduceError(.setMessage(newValue))
+        }
+    }
+
+    var isBlockingNetworkUnavailable: Bool {
+        get {
+            errorState.isBlockingNetworkUnavailable
+        }
+        set {
+            reduceError(.setBlockingNetworkUnavailable(newValue))
+        }
+    }
 
     var isGooglePlayBusy: Bool {
         switch downloadState.phase {
@@ -318,15 +339,16 @@ final class LauncherViewModel: ObservableObject {
             updateWarningText = nil
             downloadState = DownloadState(phase: .authenticating)
             statusText = "Completing Google Play sign in"
-            let googlePlay = makeGooglePlayClient()
-            let request = GooglePlayAuthRequest(
-                accountIdentifier: email,
+            let coordinator = LoginCoordinator(
+                googlePlay: makeGooglePlayClient(),
+                credentialStore: credentialStore
+            )
+            let savedCredential = try await coordinator.completeLogin(
+                email: email,
                 userID: userID,
                 oauthToken: oauthToken
             )
-            let savedCredential = try await runOffMain { try googlePlay.auth(request) }
             try Task.checkCancellation()
-            try credentialStore.saveCredential(savedCredential)
             credential = savedCredential
             credentialAccessDenied = false
             didTryLoadingStoredCredential = true
@@ -359,10 +381,8 @@ final class LauncherViewModel: ObservableObject {
                 throw LauncherError.missingCredential
             }
             downloadState = DownloadState(phase: .fetchingLatest)
-            let googlePlay = makeGooglePlayClient()
-            let latest = try await runOffMain {
-                try googlePlay.latest(packageName: "com.mojang.minecraftpe", abi: "arm64-v8a", credential: credential)
-            }
+            let downloadCoordinator = makeMinecraftDownloadCoordinator()
+            let latest = try await downloadCoordinator.latestVersion(credential: credential)
             googlePlayLatestVersion = latest
             let downloadable = try await downloadableVersion(for: latest)
             latestVersion = downloadable
@@ -501,10 +521,8 @@ final class LauncherViewModel: ObservableObject {
         lastRuntimeProgressUpdate = nil
 
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
-        if let state = installedRuntimeState(
-            using: manager,
-            fallbackDetail: "Using installed runtime; runtime download canceled."
-        ) {
+        let coordinator = RuntimeInstallCoordinator(manager: manager)
+        if let state = coordinator.installedState(fallbackDetail: "Using installed runtime; runtime download canceled.") {
             runtimeState = state
         } else {
             runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
@@ -526,10 +544,8 @@ final class LauncherViewModel: ObservableObject {
             var latest = latestVersion
             if latest == nil {
                 downloadState = DownloadState(phase: .fetchingLatest)
-                let googlePlay = makeGooglePlayClient()
-                let googleLatest = try await runOffMain {
-                    try googlePlay.latest(packageName: "com.mojang.minecraftpe", abi: "arm64-v8a", credential: credential)
-                }
+                let downloadCoordinator = makeMinecraftDownloadCoordinator()
+                let googleLatest = try await downloadCoordinator.latestVersion(credential: credential)
                 googlePlayLatestVersion = googleLatest
                 latest = try await downloadableVersion(for: googleLatest)
                 latestVersion = latest
@@ -551,23 +567,18 @@ final class LauncherViewModel: ObservableObject {
             lastDownloadProgressBytes = 0
             startDownloadStallWatch(versionName: downloadable.versionName)
             let outputURL = paths.downloadsURL.appendingPathComponent(String(downloadable.versionCode), isDirectory: true)
-            let googlePlay = makeGooglePlayClient()
+            let downloadCoordinator = makeMinecraftDownloadCoordinator()
             let downloadProgress: @Sendable (DownloadProgress) -> Void = { [weak self] progress in
                 Task { @MainActor in
                     self?.updateDownloadProgress(progress, versionName: downloadable.versionName, downloadID: downloadID)
                 }
             }
-            let response = try await runOffMain {
-                try FileManager.default.createDirectory(at: outputURL, withIntermediateDirectories: true)
-                return try googlePlay.download(
-                    packageName: "com.mojang.minecraftpe",
-                    versionCode: downloadable.versionCode,
-                    outputDirectory: outputURL,
-                    abi: "arm64-v8a",
-                    credential: credential,
-                    progress: downloadProgress
-                )
-            }
+            let response = try await downloadCoordinator.download(
+                downloadable,
+                credential: credential,
+                outputDirectory: outputURL,
+                progress: downloadProgress
+            )
             guard activeDownloadID == downloadID, !Task.isCancelled else {
                 return
             }
@@ -582,21 +593,18 @@ final class LauncherViewModel: ObservableObject {
                 phase: .extracting,
                 detail: "Extracting APK files"
             )
-            let installer = GameInstaller(processRunner: processRunner)
             let versionsURL = paths.versionsURL
             let extractProgress: @Sendable (Double) -> Void = { [weak self] progress in
                 Task { @MainActor in
                     self?.updateExtractionProgress(progress, versionName: downloadable.versionName)
                 }
             }
-            let installed = try await runOffMain {
-                try installer.install(
-                    downloadedAPKs: response.files,
-                    latestVersion: downloadable,
-                    versionsDirectory: versionsURL,
-                    progress: extractProgress
-                )
-            }
+            let installed = try await downloadCoordinator.install(
+                downloadedAPKs: response.files,
+                latestVersion: downloadable,
+                versionsDirectory: versionsURL,
+                progress: extractProgress
+            )
             guard activeDownloadID == downloadID, !Task.isCancelled else {
                 return
             }
@@ -706,20 +714,18 @@ final class LauncherViewModel: ObservableObject {
             }
             let clientWrapperExecutableURL = clientWrapperExecutableURL()
             let clientWrapperIconURL = clientWrapperIconURL()
-            try await runOffMain {
-                try launcher.launchDetached(
-                    runtimePath: runtimePath,
-                    version: selectedVersion,
-                    compatibilityPatchPath: patchPath,
-                    dataPath: dataPath,
-                    cachePath: cachePath,
-                    credentialsHelperDirectory: credentialsHelperDirectory,
-                    googleCredential: googleCredential,
-                    logURL: logURL,
-                    clientWrapperExecutableURL: clientWrapperExecutableURL,
-                    clientWrapperIconURL: clientWrapperIconURL
-                )
-            }
+            try await LaunchCoordinator(launcher: launcher).launchDetached(
+                runtimePath: runtimePath,
+                version: selectedVersion,
+                compatibilityPatchPath: patchPath,
+                dataPath: dataPath,
+                cachePath: cachePath,
+                credentialsHelperDirectory: credentialsHelperDirectory,
+                googleCredential: googleCredential,
+                logURL: logURL,
+                clientWrapperExecutableURL: clientWrapperExecutableURL,
+                clientWrapperIconURL: clientWrapperIconURL
+            )
             NSApplication.shared.terminate(nil)
             errorText = nil
             if let logURL {
@@ -856,6 +862,13 @@ final class LauncherViewModel: ObservableObject {
         )
     }
 
+    private func makeMinecraftDownloadCoordinator() -> MinecraftDownloadCoordinator {
+        MinecraftDownloadCoordinator(
+            googlePlay: makeGooglePlayClient(),
+            processRunner: processRunner
+        )
+    }
+
     private func gplayverURL() -> URL {
         if let override = ProcessInfo.processInfo.environment["GPLAYVER_PATH"], !override.isEmpty {
             return URL(fileURLWithPath: override)
@@ -913,10 +926,8 @@ final class LauncherViewModel: ObservableObject {
 
     private func refreshInstalledRuntimeState() {
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
-        if let state = installedRuntimeState(
-            using: manager,
-            fallbackDetail: "Using installed runtime."
-        ) {
+        let coordinator = RuntimeInstallCoordinator(manager: manager)
+        if let state = coordinator.installedState(fallbackDetail: "Using installed runtime.") {
             runtimeState = state
         } else {
             runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
@@ -932,10 +943,8 @@ final class LauncherViewModel: ObservableObject {
 
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
         let hasRuntime = manager.hasInstalledRuntime()
-        if let state = installedRuntimeState(
-            using: manager,
-            fallbackDetail: "Using installed runtime."
-        ) {
+        let coordinator = RuntimeInstallCoordinator(manager: manager)
+        if let state = coordinator.installedState(fallbackDetail: "Using installed runtime.") {
             runtimeState = state
         } else {
             runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
@@ -974,10 +983,8 @@ final class LauncherViewModel: ObservableObject {
         canSkipRuntimeUpdateCheck = false
 
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
-        if let state = installedRuntimeState(
-            using: manager,
-            fallbackDetail: "Using installed runtime; update skipped."
-        ) {
+        let coordinator = RuntimeInstallCoordinator(manager: manager)
+        if let state = coordinator.installedState(fallbackDetail: "Using installed runtime; update skipped.") {
             errorText = nil
             runtimeState = state
             return
@@ -991,6 +998,7 @@ final class LauncherViewModel: ObservableObject {
         allowsSkip: Bool = false
     ) async {
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
+        let coordinator = RuntimeInstallCoordinator(manager: manager)
         let updateID = UUID()
         activeRuntimeUpdateID = updateID
         runtimeSkipDelayTask?.cancel()
@@ -1020,12 +1028,12 @@ final class LauncherViewModel: ObservableObject {
         do {
             let metadata: RuntimeMetadata
             if allowsSkip {
-                let release = try await manager.resolveLatestRelease()
+                let release = try await coordinator.resolveLatestRelease()
                 try Task.checkCancellation()
                 canSkipRuntimeUpdateCheck = false
-                metadata = try await manager.install(release, progress: runtimeDownloadProgress)
+                metadata = try await coordinator.install(release, progress: runtimeDownloadProgress)
             } else {
-                metadata = try await manager.installLatest(progress: runtimeDownloadProgress)
+                metadata = try await coordinator.installLatest(progress: runtimeDownloadProgress)
             }
             guard activeRuntimeUpdateID == updateID, !Task.isCancelled else {
                 return
@@ -1045,10 +1053,7 @@ final class LauncherViewModel: ObservableObject {
             runtimeSkipDelayTask?.cancel()
             runtimeSkipDelayTask = nil
             activeRuntimeUpdateID = nil
-            if let state = installedRuntimeState(
-                using: manager,
-                fallbackDetail: "Using installed runtime; update skipped."
-            ) {
+            if let state = coordinator.installedState(fallbackDetail: "Using installed runtime; update skipped.") {
                 errorText = nil
                 runtimeState = state
             } else {
@@ -1062,8 +1067,7 @@ final class LauncherViewModel: ObservableObject {
             runtimeSkipDelayTask?.cancel()
             runtimeSkipDelayTask = nil
             activeRuntimeUpdateID = nil
-            if let state = installedRuntimeState(
-                using: manager,
+            if let state = coordinator.installedState(
                 fallbackDetail: "Using installed runtime; update check failed: \(error.localizedDescription)"
             ) {
                 refreshSelectedVersionCompatibility()
@@ -1161,7 +1165,11 @@ final class LauncherViewModel: ObservableObject {
                         phase: .failed,
                         error: message
                     )
-                    self.errorText = message
+                    self.reduceError(.fail(
+                        message: message,
+                        issue: bytesReceived > 0 ? .downloadStalled : .downloadDidNotStart,
+                        blocksNetworkUnavailable: false
+                    ))
                     self.updateWarningText = nil
                     self.statusText = message
                     return true
@@ -1179,16 +1187,6 @@ final class LauncherViewModel: ObservableObject {
         }
         let percent = Double(progress.bytesReceived) / Double(total) * 100
         return String(format: "Downloading runtime %.1f%%", percent)
-    }
-
-    private func installedRuntimeState(using manager: RuntimeManager, fallbackDetail: String) -> RuntimeState? {
-        guard manager.hasInstalledRuntime() else {
-            return nil
-        }
-        if let metadata = manager.installedMetadata() {
-            return RuntimeState(phase: .ready, version: metadata.version, detail: fallbackDetail)
-        }
-        return RuntimeState(phase: .ready, version: "installed", detail: fallbackDetail)
     }
 
     private func runtimeOverrideURL() -> URL? {
@@ -1223,22 +1221,11 @@ final class LauncherViewModel: ObservableObject {
 
     private func checkDownloadAccess(for version: LatestVersion, credential: GoogleCredential) async throws {
         let probeURL = paths.downloadsURL.appendingPathComponent("AccessProbe-\(UUID().uuidString)", isDirectory: true)
-        let googlePlay = makeGooglePlayClient()
-        do {
-            try await runOffMain {
-                try googlePlay.checkDownloadAccess(
-                    packageName: "com.mojang.minecraftpe",
-                    versionCode: version.versionCode,
-                    outputDirectory: probeURL,
-                    abi: "arm64-v8a",
-                    credential: credential
-                )
-            }
-        } catch {
-            try? FileManager.default.removeItem(at: probeURL)
-            throw error
-        }
-        try? FileManager.default.removeItem(at: probeURL)
+        try await makeMinecraftDownloadCoordinator().checkDownloadAccess(
+            for: version,
+            credential: credential,
+            outputDirectory: probeURL
+        )
     }
 
     private func updateDownloadProgress(_ progress: DownloadProgress, versionName: String, downloadID: UUID) {
@@ -1461,58 +1448,22 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func show(_ error: Error) {
-        errorText = error.localizedDescription
-        isBlockingNetworkUnavailable = shouldShowBlockingNetworkUnavailable(for: error)
+        let issue = LauncherIssue(error: error)
+        reduceError(.present(
+            error: error,
+            blocksNetworkUnavailable: shouldShowBlockingNetworkUnavailable(for: issue)
+        ))
         statusText = error.localizedDescription
     }
 
-    private func shouldShowBlockingNetworkUnavailable(for error: Error) -> Bool {
+    private func shouldShowBlockingNetworkUnavailable(for issue: LauncherIssue) -> Bool {
         guard selectedVersion == nil || !isRuntimeReady else {
             return false
         }
-        return Self.isNetworkUnavailable(error)
+        return issue.isNetworkUnavailable
     }
 
-    private static func isNetworkUnavailable(_ error: Error) -> Bool {
-        if let urlError = error as? URLError {
-            switch urlError.code {
-            case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .timedOut:
-                return true
-            default:
-                return false
-            }
-        }
-
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            return [
-                NSURLErrorNotConnectedToInternet,
-                NSURLErrorNetworkConnectionLost,
-                NSURLErrorCannotFindHost,
-                NSURLErrorCannotConnectToHost,
-                NSURLErrorDNSLookupFailed,
-                NSURLErrorTimedOut
-            ].contains(nsError.code)
-        }
-
-        if case LauncherError.googlePlayToolFailed(let command, let status, let output) = error,
-           (command.localizedCaseInsensitiveContains("gplayver") || command.localizedCaseInsensitiveContains("gplaydl")),
-           status == 1,
-           output.localizedCaseInsensitiveContains("bad token") {
-            return true
-        }
-
-        let description = error.localizedDescription
-        return description.localizedCaseInsensitiveContains("not connected to the internet")
-            || description.localizedCaseInsensitiveContains("network connection was lost")
-            || description.localizedCaseInsensitiveContains("cannot find host")
-            || description.localizedCaseInsensitiveContains("could not resolve host")
-            || description.localizedCaseInsensitiveContains("timed out")
+    private func reduceError(_ action: LauncherErrorAction) {
+        LauncherErrorReducer.reduce(&errorState, action: action)
     }
-}
-
-private func runOffMain<T: Sendable>(_ operation: @escaping @Sendable () throws -> T) async throws -> T {
-    try await Task.detached(priority: .userInitiated) {
-        try operation()
-    }.value
 }

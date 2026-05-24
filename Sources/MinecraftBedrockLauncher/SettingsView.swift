@@ -102,6 +102,7 @@ struct SettingsView: View {
                         systemImage: "cpu",
                         isWorking: model.isDeletingRuntime,
                         isComplete: completedAction == .runtime,
+                        isDisabled: model.isStorageActionBusy,
                         action: { pendingDeleteAction = .runtime }
                     )
                     Divider()
@@ -111,6 +112,7 @@ struct SettingsView: View {
                         systemImage: "cube",
                         isWorking: model.isDeletingGame,
                         isComplete: completedAction == .game,
+                        isDisabled: model.isStorageActionBusy,
                         action: { pendingDeleteAction = .game }
                     )
                     Divider()
@@ -120,6 +122,7 @@ struct SettingsView: View {
                         systemImage: "externaldrive",
                         isWorking: model.isDeletingData,
                         isComplete: completedAction == .data,
+                        isDisabled: model.isStorageActionBusy,
                         action: { pendingDeleteAction = .data }
                     )
                 }
@@ -148,6 +151,7 @@ struct SettingsView: View {
                     perform(pendingDeleteAction)
                     self.pendingDeleteAction = nil
                 }
+                .disabled(model.isStorageActionBusy)
             }
             Button("Cancel", role: .cancel) {
                 pendingDeleteAction = nil
@@ -160,14 +164,22 @@ struct SettingsView: View {
     }
 
     private func perform(_ action: DeleteAction) {
+        guard !model.isStorageActionBusy else {
+            return
+        }
+        completedAction = nil
         Task {
+            let succeeded: Bool
             switch action {
             case .runtime:
-                await model.deleteRuntime()
+                succeeded = await model.deleteRuntime()
             case .game:
-                await model.deleteInstalledGames()
+                succeeded = await model.deleteInstalledGames()
             case .data:
-                await model.deleteMinecraftData()
+                succeeded = await model.deleteMinecraftData()
+            }
+            guard succeeded else {
+                return
             }
             completedAction = action
             try? await Task.sleep(nanoseconds: 1_200_000_000)
@@ -265,6 +277,7 @@ private struct DeleteRow: View {
     var systemImage: String
     var isWorking: Bool
     var isComplete: Bool
+    var isDisabled: Bool
     var action: () -> Void
 
     var body: some View {
@@ -302,7 +315,7 @@ private struct DeleteRow: View {
                 .animation(.easeInOut(duration: 0.18), value: isComplete)
             }
             .buttonStyle(.borderless)
-            .disabled(isWorking)
+            .disabled(isDisabled)
             .help(title)
         }
         .padding(.horizontal, 10)

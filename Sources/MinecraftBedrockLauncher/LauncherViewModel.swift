@@ -43,6 +43,10 @@ final class LauncherViewModel: ObservableObject {
         runtimeState.phase == .checking || runtimeState.phase == .downloading || runtimeState.phase == .installing
     }
 
+    var isStorageActionBusy: Bool {
+        isDeletingRuntime || isDeletingGame || isDeletingData || isGooglePlayBusy || isRuntimeBusy
+    }
+
     var isRuntimeReady: Bool {
         runtimeState.phase == .ready
     }
@@ -223,7 +227,7 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    func deleteRuntime() async {
+    func deleteRuntime() async -> Bool {
         runtimeUpdateTask?.cancel()
         runtimeUpdateTask = nil
         runtimeSkipDelayTask?.cancel()
@@ -244,12 +248,15 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             updateWarningText = nil
             statusText = "Runtime deleted."
+            return true
         } catch {
             show(error)
+            return false
         }
     }
 
-    func deleteInstalledGames() async {
+    func deleteInstalledGames() async -> Bool {
+        cancelActiveDownloadWork()
         do {
             isDeletingGame = true
             defer { isDeletingGame = false }
@@ -274,12 +281,14 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             updateWarningText = nil
             statusText = "Installed games deleted."
+            return true
         } catch {
             show(error)
+            return false
         }
     }
 
-    func deleteMinecraftData() async {
+    func deleteMinecraftData() async -> Bool {
         do {
             isDeletingData = true
             defer { isDeletingData = false }
@@ -295,8 +304,10 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             updateWarningText = nil
             statusText = "Minecraft data deleted."
+            return true
         } catch {
             show(error)
+            return false
         }
     }
 
@@ -442,18 +453,25 @@ final class LauncherViewModel: ObservableObject {
         guard downloadState.phase == .downloading else {
             return
         }
-        activeDownloadTask?.cancel()
-        activeDownloadTask = nil
-        activeDownloadID = nil
-        ChildProcessRegistry.shared.terminateAll()
-        downloadStallTask?.cancel()
-        downloadStallTask = nil
-        lastDownloadProgressEventDate = nil
-        lastDownloadProgressBytes = 0
+        cancelActiveDownloadWork()
         downloadState = latestVersion.map { DownloadState(versionName: $0.versionName) } ?? DownloadState()
         errorText = nil
         updateWarningText = nil
         statusText = "Download canceled."
+    }
+
+    private func cancelActiveDownloadWork() {
+        let shouldTerminateChildren = activeDownloadTask != nil || activeDownloadID != nil || isGooglePlayBusy
+        activeDownloadTask?.cancel()
+        activeDownloadTask = nil
+        activeDownloadID = nil
+        if shouldTerminateChildren {
+            ChildProcessRegistry.shared.terminateAll()
+        }
+        downloadStallTask?.cancel()
+        downloadStallTask = nil
+        lastDownloadProgressEventDate = nil
+        lastDownloadProgressBytes = 0
     }
 
     func cancelRuntimeDownload() {

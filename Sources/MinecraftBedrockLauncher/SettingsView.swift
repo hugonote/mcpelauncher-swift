@@ -190,7 +190,6 @@ private struct ToggleRow: View {
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
-                .primaryIconBounce(id: systemImage)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -233,7 +232,6 @@ private struct SegmentedRow: View {
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
-                .primaryIconBounce(id: systemImage)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -275,7 +273,6 @@ private struct DeleteRow: View {
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
-                .primaryIconBounce(id: systemImage)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

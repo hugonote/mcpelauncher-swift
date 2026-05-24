@@ -128,7 +128,8 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: 250, alignment: .trailing)
+                .help(model.displayCredentialEmail ?? "Not signed in")
 
             if model.credential == nil {
                 Button("Sign in") {

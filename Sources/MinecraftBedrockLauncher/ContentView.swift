@@ -286,10 +286,7 @@ struct ContentView: View {
 
     private var keychainErrorView: some View {
         VStack(spacing: 12) {
-            Image(systemName: "key.slash")
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
-                .primaryIconBounce(id: "key.slash")
+            DrawOnSymbolView(systemName: "key.slash", size: 36)
                 .accessibilityHidden(true)
 
             VStack(spacing: 5) {
@@ -1350,6 +1347,16 @@ private enum TitleIconBadge: Equatable {
 }
 
 private struct OfflineGlobeView: View {
+    var body: some View {
+        DrawOnSymbolView(systemName: "network.slash", size: 54)
+        .frame(width: 68, height: 68)
+    }
+}
+
+private struct DrawOnSymbolView: View {
+    var systemName: String
+    var size: CGFloat
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isVisible = false
 
@@ -1358,7 +1365,7 @@ private struct OfflineGlobeView: View {
             if #available(macOS 26.0, *) {
                 ZStack {
                     if isVisible {
-                        networkSlashIcon
+                        icon
                             .transition(.symbolEffect(.drawOn.byLayer))
                     }
                 }
@@ -1375,15 +1382,14 @@ private struct OfflineGlobeView: View {
                     }
                 }
             } else {
-                networkSlashIcon
+                icon
             }
         }
-        .frame(width: 68, height: 68)
     }
 
-    private var networkSlashIcon: some View {
-        Image(systemName: "network.slash")
-            .font(.system(size: 54, weight: .regular))
+    private var icon: some View {
+        Image(systemName: systemName)
+            .font(.system(size: size, weight: .regular))
             .foregroundStyle(.secondary)
     }
 }

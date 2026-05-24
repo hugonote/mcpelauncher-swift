@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import MinecraftBedrockLauncherCore
 import CoreGraphics
+import Network
 
 @MainActor
 final class LauncherViewModel: ObservableObject {
@@ -72,6 +73,8 @@ final class LauncherViewModel: ObservableObject {
     private let credentialStore: CredentialStore
     private let registry: InstalledVersionRegistry
     private let processRunner: ProcessRunning
+    private let networkMonitor = NWPathMonitor()
+    private let networkMonitorQueue = DispatchQueue(label: "MinecraftBedrockLauncher.NetworkMonitor")
     private var didStart = false
     private var didContinueStartupAfterWindowReveal = false
     private var didTryLoadingStoredCredential = false
@@ -79,6 +82,8 @@ final class LauncherViewModel: ObservableObject {
     private var runtimeSkipDelayTask: Task<Void, Never>?
     private var activeRuntimeUpdateID: UUID?
     private var lastDownloadProgressUpdate: Date?
+    private var lastDownloadProgressEventDate: Date?
+    private var lastDownloadProgressBytes: Int64 = 0
     private var lastRuntimeProgressUpdate: Date?
     private var downloadStallTask: Task<Void, Never>?
     private var activeDownloadTask: Task<Void, Never>?
@@ -104,6 +109,11 @@ final class LauncherViewModel: ObservableObject {
         self.credentialStore = credentialStore
         self.registry = InstalledVersionRegistry(paths: resolvedPaths)
         self.processRunner = processRunner
+        startNetworkMonitor()
+    }
+
+    deinit {
+        networkMonitor.cancel()
     }
 
     func start() async {
@@ -388,6 +398,46 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    private func startNetworkMonitor() {
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            guard path.status == .satisfied else {
+                return
+            }
+            Task { @MainActor [weak self] in
+                await self?.retryBlockingNetworkUnavailableIfNeeded()
+            }
+        }
+        networkMonitor.start(queue: networkMonitorQueue)
+    }
+
+    private func retryBlockingNetworkUnavailableIfNeeded() async {
+        guard isBlockingNetworkUnavailable,
+              !isGooglePlayBusy,
+              !isRuntimeBusy else {
+            return
+        }
+
+        isBlockingNetworkUnavailable = false
+        errorText = nil
+        updateWarningText = nil
+
+        if selectedVersion == nil {
+            guard credential != nil else {
+                statusText = "Sign in to Google Play to download Minecraft."
+                return
+            }
+            startDownloadAndInstallLatest()
+            return
+        }
+
+        if !isRuntimeReady {
+            startRuntimeInstall()
+            return
+        }
+
+        await fetchLatest()
+    }
+
     func cancelDownload() {
         guard downloadState.phase == .downloading else {
             return
@@ -398,6 +448,8 @@ final class LauncherViewModel: ObservableObject {
         ChildProcessRegistry.shared.terminateAll()
         downloadStallTask?.cancel()
         downloadStallTask = nil
+        lastDownloadProgressEventDate = nil
+        lastDownloadProgressBytes = 0
         downloadState = latestVersion.map { DownloadState(versionName: $0.versionName) } ?? DownloadState()
         errorText = nil
         updateWarningText = nil
@@ -463,6 +515,8 @@ final class LauncherViewModel: ObservableObject {
                 detail: "Starting download"
             )
             lastDownloadProgressUpdate = nil
+            lastDownloadProgressEventDate = Date()
+            lastDownloadProgressBytes = 0
             startDownloadStallWatch(versionName: downloadable.versionName)
             let outputURL = paths.downloadsURL.appendingPathComponent(String(downloadable.versionCode), isDirectory: true)
             let googlePlay = makeGooglePlayClient()
@@ -487,6 +541,8 @@ final class LauncherViewModel: ObservableObject {
             }
             downloadStallTask?.cancel()
             downloadStallTask = nil
+            lastDownloadProgressEventDate = nil
+            lastDownloadProgressBytes = 0
 
             downloadState = DownloadState(
                 versionName: downloadable.versionName,
@@ -545,6 +601,8 @@ final class LauncherViewModel: ObservableObject {
             refreshSelectedVersionCompatibility()
             activeDownloadID = nil
             downloadState = DownloadState(versionName: downloadable.versionName, progress: 1, phase: .installed)
+            lastDownloadProgressEventDate = nil
+            lastDownloadProgressBytes = 0
             errorText = nil
             updateWarningText = nil
             statusText = "Installed \(downloadable.versionName)."
@@ -555,6 +613,8 @@ final class LauncherViewModel: ObservableObject {
             activeDownloadID = nil
             downloadStallTask?.cancel()
             downloadStallTask = nil
+            lastDownloadProgressEventDate = nil
+            lastDownloadProgressBytes = 0
             downloadState = latestVersion.map { DownloadState(versionName: $0.versionName) } ?? DownloadState()
             errorText = nil
             updateWarningText = nil
@@ -566,6 +626,8 @@ final class LauncherViewModel: ObservableObject {
             activeDownloadID = nil
             downloadStallTask?.cancel()
             downloadStallTask = nil
+            lastDownloadProgressEventDate = nil
+            lastDownloadProgressBytes = 0
             downloadState = DownloadState(phase: .failed, error: error.localizedDescription)
             show(error)
         }
@@ -903,7 +965,10 @@ final class LauncherViewModel: ObservableObject {
         runtimeSkipDelayTask = nil
         canSkipRuntimeUpdateCheck = false
         lastRuntimeProgressUpdate = nil
+        errorText = nil
+        updateWarningText = nil
         isBlockingNetworkUnavailable = false
+        statusText = forceStatus
         runtimeState = RuntimeState(phase: phase, version: runtimeState.version, detail: forceStatus)
         if allowsSkip {
             runtimeSkipDelayTask = Task { [weak self] in
@@ -1034,21 +1099,44 @@ final class LauncherViewModel: ObservableObject {
     private func startDownloadStallWatch(versionName: String) {
         downloadStallTask?.cancel()
         downloadStallTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 10_000_000_000)
-            await MainActor.run {
-                guard let self,
-                      self.downloadState.phase == .downloading,
-                      self.downloadState.versionName == versionName,
-                      (self.downloadState.bytesReceived ?? 0) == 0 else {
-                    return
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                let shouldStop = await MainActor.run {
+                    guard let self,
+                          self.downloadState.phase == .downloading,
+                          self.downloadState.versionName == versionName else {
+                        return true
+                    }
+
+                    let bytesReceived = self.downloadState.bytesReceived ?? 0
+                    let lastProgressDate = self.lastDownloadProgressEventDate ?? Date()
+                    let timeout: TimeInterval = bytesReceived > 0 ? 30 : 10
+                    guard Date().timeIntervalSince(lastProgressDate) >= timeout else {
+                        return false
+                    }
+
+                    let message = bytesReceived > 0
+                        ? "Download stalled. Check your connection and try again."
+                        : "Download did not start. Check your connection and try again."
+                    self.activeDownloadID = nil
+                    self.activeDownloadTask?.cancel()
+                    self.activeDownloadTask = nil
+                    ChildProcessRegistry.shared.terminateAll()
+                    self.lastDownloadProgressEventDate = nil
+                    self.lastDownloadProgressBytes = 0
+                    self.downloadState = DownloadState(
+                        versionName: versionName,
+                        phase: .failed,
+                        error: message
+                    )
+                    self.errorText = message
+                    self.updateWarningText = nil
+                    self.statusText = message
+                    return true
                 }
-                self.downloadState = DownloadState(
-                    versionName: versionName,
-                    phase: .failed,
-                    error: "Download did not start. Check your connection and try again."
-                )
-                self.errorText = "Download did not start. Check your connection and try again."
-                self.statusText = self.errorText ?? "Download failed."
+                if shouldStop {
+                    break
+                }
             }
         }
     }
@@ -1123,8 +1211,14 @@ final class LauncherViewModel: ObservableObject {
 
     private func updateDownloadProgress(_ progress: DownloadProgress, versionName: String, downloadID: UUID) {
         guard activeDownloadID == downloadID,
-              downloadState.phase != .failed,
-              shouldPublishDownloadProgress(progress) else {
+              downloadState.phase != .failed else {
+            return
+        }
+        if progress.bytesReceived > lastDownloadProgressBytes {
+            lastDownloadProgressBytes = progress.bytesReceived
+            lastDownloadProgressEventDate = Date()
+        }
+        guard shouldPublishDownloadProgress(progress) else {
             return
         }
         let fraction = progress.fractionCompleted
@@ -1370,7 +1464,7 @@ final class LauncherViewModel: ObservableObject {
         }
 
         if case LauncherError.googlePlayToolFailed(let command, let status, let output) = error,
-           command.localizedCaseInsensitiveContains("gplayver"),
+           (command.localizedCaseInsensitiveContains("gplayver") || command.localizedCaseInsensitiveContains("gplaydl")),
            status == 1,
            output.localizedCaseInsensitiveContains("bad token") {
             return true

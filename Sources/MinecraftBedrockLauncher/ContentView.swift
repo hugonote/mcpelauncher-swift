@@ -367,16 +367,14 @@ struct ContentView: View {
                     .frame(maxWidth: 276)
             }
 
-            Button {
-                Task { await primaryAction() }
-            } label: {
-                Label("Retry", systemImage: "arrow.clockwise")
-                    .font(.body.weight(.semibold))
-                    .frame(width: compactButtonWidth)
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Waiting for connection")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(model.isGooglePlayBusy || model.isRuntimeBusy)
+            .frame(height: 32)
         }
         .offset(y: -26)
     }
@@ -832,7 +830,7 @@ struct ContentView: View {
     }
 
     private var shouldShowVersionInfoButton: Bool {
-        !isPurchaseRequired && !shouldShowRuntimeTitle
+        !isPurchaseRequired && !shouldShowRuntimeTitle && model.downloadState.phase != .failed
     }
 
     private var runtimeInfoVersionText: String {
@@ -898,7 +896,18 @@ struct ContentView: View {
     }
 
     private var shouldShowPlaySideButton: Bool {
-        isMinecraftUpdateAvailable && model.canUseSelectedVersion && model.isRuntimeReady
+        model.canUseSelectedVersion
+            && model.isRuntimeReady
+            && !isPrimaryPlayAction
+            && (isMinecraftUpdateAvailable || model.downloadState.phase == .failed)
+    }
+
+    private var isPrimaryPlayAction: Bool {
+        !isPurchaseRequired
+            && !shouldFocusRuntime
+            && !isMinecraftUpdateAvailable
+            && model.canUseSelectedVersion
+            && model.isRuntimeReady
     }
 
     private var shouldShowRuntimeTitle: Bool {
@@ -967,7 +976,7 @@ struct ContentView: View {
 
     private var statusColor: Color {
         if model.isBlockingNetworkUnavailable {
-            return .orange
+            return .red
         }
         if model.errorText != nil || model.runtimeState.phase == .failed || model.downloadState.phase == .failed {
             return .red
@@ -990,6 +999,15 @@ struct ContentView: View {
     private var shortStatusText: String {
         if model.isBlockingNetworkUnavailable {
             return "No internet connection"
+        }
+        if let errorText = model.errorText, isNoInternetError(errorText) {
+            return "Offline"
+        }
+        if model.downloadState.phase == .failed {
+            return "Download failed"
+        }
+        if model.runtimeState.phase == .failed {
+            return "Runtime failed"
         }
         if let errorText = model.errorText {
             return shortErrorText(for: errorText)
@@ -1044,6 +1062,18 @@ struct ContentView: View {
         if isMinecraftPurchaseError(error) {
             return "Minecraft not purchased"
         }
+        if isDownloadStalledError(error) {
+            return "Download stalled"
+        }
+        if isDownloadDidNotStartError(error) {
+            return "Download did not start"
+        }
+        if isNoInternetError(error) {
+            return "No internet connection"
+        }
+        if isInterruptedConnectionError(error) {
+            return "Connection interrupted"
+        }
         return error
     }
 
@@ -1057,7 +1087,43 @@ struct ContentView: View {
         if isBundledHelperNotFoundError(error) {
             return "Application corrupted"
         }
+        if isDownloadStalledError(error) || isDownloadDidNotStartError(error) {
+            return "Download failed"
+        }
+        if isNoInternetError(error) {
+            return "Offline"
+        }
+        if isInterruptedConnectionError(error) {
+            return "Connection interrupted"
+        }
         return error
+    }
+
+    private func isDownloadStalledError(_ error: String) -> Bool {
+        error.localizedCaseInsensitiveContains("download stalled")
+    }
+
+    private func isDownloadDidNotStartError(_ error: String) -> Bool {
+        error.localizedCaseInsensitiveContains("download did not start")
+    }
+
+    private func isNoInternetError(_ error: String) -> Bool {
+        isGooglePlayBadTokenError(error)
+            || error.localizedCaseInsensitiveContains("not connected to the internet")
+            || error.localizedCaseInsensitiveContains("cannot find host")
+            || error.localizedCaseInsensitiveContains("could not resolve host")
+            || error.localizedCaseInsensitiveContains("dns")
+    }
+
+    private func isGooglePlayBadTokenError(_ error: String) -> Bool {
+        (error.localizedCaseInsensitiveContains("gplaydl failed")
+            || error.localizedCaseInsensitiveContains("gplayver failed"))
+            && error.localizedCaseInsensitiveContains("bad token")
+    }
+
+    private func isInterruptedConnectionError(_ error: String) -> Bool {
+        error.localizedCaseInsensitiveContains("network connection was lost")
+            || error.localizedCaseInsensitiveContains("timed out")
     }
 
     private var networkUnavailableMessage: String {

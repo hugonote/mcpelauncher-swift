@@ -384,6 +384,39 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertTrue(log.contains("captured by mcpelauncher-client-wrapper"))
     }
 
+    func testDetachedLaunchDelegatesCredentialCleanupToWrapper() throws {
+        let temp = try TemporaryDirectory()
+        let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)
+        let executableURL = runtimeURL.appendingPathComponent("bin/mcpelauncher-client", isDirectory: false)
+        let versionURL = temp.url.appendingPathComponent("Game", isDirectory: true)
+        let wrapperURL = temp.url.appendingPathComponent("Helpers/mcpelauncher-client-wrapper", isDirectory: false)
+        try writeExecutable(executableURL)
+        try writeExecutable(wrapperURL)
+        try FileManager.default.createDirectory(at: versionURL, withIntermediateDirectories: true)
+        let appLauncher = MockRuntimeApplicationLauncher()
+        let launcher = RuntimeLauncher(
+            applicationLauncher: appLauncher,
+            detachedCredentialCleanupDelay: 0
+        )
+        let version = InstalledVersion(versionName: "1.26.20.4", versionCode: 972602004, installPath: versionURL)
+
+        try launcher.launchDetached(
+            runtimePath: runtimeURL,
+            version: version,
+            googleCredential: GoogleCredential(email: "u@example.com", masterToken: "master"),
+            clientWrapperExecutableURL: wrapperURL
+        )
+
+        let launch = try XCTUnwrap(appLauncher.launches.first)
+        let credentialPath = try XCTUnwrap(launch.environment[GoogleCredentialFileTransfer.environmentKey])
+        defer {
+            GoogleCredentialFileTransfer.removeCredentialFile(
+                at: URL(fileURLWithPath: credentialPath, isDirectory: false)
+            )
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: credentialPath))
+    }
+
     func testRuntimeWarmUpTerminatesAfterPairIPLoads() throws {
         let temp = try TemporaryDirectory()
         let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)

@@ -166,7 +166,6 @@ public struct RuntimeLauncher: @unchecked Sendable {
                 GoogleCredentialFileTransfer.removeCredentialFile(at: command.credentialFileURL, fileManager: fileManager)
                 throw error
             }
-            scheduleDetachedCredentialCleanup(command.credentialFileURL)
             return
         }
 

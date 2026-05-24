@@ -297,6 +297,62 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertFalse(log.contains("master-token"))
     }
 
+    func testDetachedLaunchUsesGeneratedGameModeAppBundleWhenWrapperIsAvailable() throws {
+        let temp = try TemporaryDirectory()
+        let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)
+        let executableURL = runtimeURL.appendingPathComponent("bin/mcpelauncher-client", isDirectory: false)
+        let versionURL = temp.url.appendingPathComponent("Game", isDirectory: true)
+        let wrapperURL = temp.url.appendingPathComponent("Helpers/mcpelauncher-client-wrapper", isDirectory: false)
+        let iconURL = temp.url.appendingPathComponent("Icon/minecraft-bedrock.icns", isDirectory: false)
+        let logURL = temp.url.appendingPathComponent("Logs/launch.log", isDirectory: false)
+        try writeExecutable(executableURL)
+        try writeExecutable(wrapperURL)
+        try FileManager.default.createDirectory(at: versionURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: iconURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("icon".utf8).write(to: iconURL)
+        let appLauncher = MockRuntimeApplicationLauncher()
+        let launcher = RuntimeLauncher(applicationLauncher: appLauncher)
+        let version = InstalledVersion(versionName: "1.26.20.4", versionCode: 972602004, installPath: versionURL)
+
+        try launcher.launchDetached(
+            runtimePath: runtimeURL,
+            version: version,
+            logURL: logURL,
+            clientWrapperExecutableURL: wrapperURL,
+            clientWrapperIconURL: iconURL
+        )
+
+        XCTAssertEqual(appLauncher.launches.count, 1)
+        let launch = try XCTUnwrap(appLauncher.launches.first)
+        XCTAssertEqual(launch.appURL, runtimeURL.appendingPathComponent("Minecraft Bedrock.app", isDirectory: true))
+        XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.executableKey], executableURL.path)
+        XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.workingDirectoryKey], runtimeURL.path)
+        XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.outputLogKey], logURL.path)
+        XCTAssertEqual(launch.arguments, ["--disable-fmod", "-fes", "-dg", versionURL.path])
+
+        let appURL = launch.appURL
+        let copiedWrapperURL = appURL.appendingPathComponent("Contents/MacOS/mcpelauncher-client-wrapper", isDirectory: false)
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: copiedWrapperURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: appURL.appendingPathComponent("Contents/Resources/minecraft-bedrock.icns", isDirectory: false).path
+        ))
+
+        let infoURL = appURL.appendingPathComponent("Contents/Info.plist", isDirectory: false)
+        let infoData = try Data(contentsOf: infoURL)
+        let info = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: infoData, options: [], format: nil) as? [String: Any]
+        )
+        XCTAssertEqual(info["CFBundleExecutable"] as? String, "mcpelauncher-client-wrapper")
+        XCTAssertEqual(info["CFBundleIdentifier"] as? String, "local.minecraft.bedrock.swiftlauncher.client")
+        XCTAssertEqual(info["LSApplicationCategoryType"] as? String, "public.app-category.games")
+        XCTAssertEqual(info["LSSupportsGameMode"] as? Bool, true)
+        XCTAssertEqual(info["GCSupportsGameMode"] as? Bool, true)
+
+        let log = try String(contentsOf: logURL)
+        XCTAssertTrue(log.contains("app bundle: \(appURL.path)"))
+        XCTAssertTrue(log.contains("captured by mcpelauncher-client-wrapper"))
+    }
+
     func testRuntimeWarmUpTerminatesAfterPairIPLoads() throws {
         let temp = try TemporaryDirectory()
         let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)

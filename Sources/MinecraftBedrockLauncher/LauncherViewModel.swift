@@ -589,6 +589,8 @@ final class LauncherViewModel: ObservableObject {
                 )
                 statusText = "Launching \(selectedVersion.versionName)"
             }
+            let clientWrapperExecutableURL = clientWrapperExecutableURL()
+            let clientWrapperIconURL = clientWrapperIconURL()
             try await runOffMain {
                 try launcher.launchDetached(
                     runtimePath: runtimePath,
@@ -598,7 +600,9 @@ final class LauncherViewModel: ObservableObject {
                     cachePath: cachePath,
                     credentialsHelperDirectory: credentialsHelperDirectory,
                     googleCredential: googleCredential,
-                    logURL: logURL
+                    logURL: logURL,
+                    clientWrapperExecutableURL: clientWrapperExecutableURL,
+                    clientWrapperIconURL: clientWrapperIconURL
                 )
             }
             NSApplication.shared.terminate(nil)
@@ -763,6 +767,22 @@ final class LauncherViewModel: ObservableObject {
             return URL(fileURLWithPath: override)
         }
         return bundledHelperURL(named: "mcpelauncher-ui-qt")
+    }
+
+    private func clientWrapperExecutableURL() -> URL? {
+        if let override = ProcessInfo.processInfo.environment["MCPELAUNCHER_CLIENT_WRAPPER_PATH"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return bundledHelperURL(named: "mcpelauncher-client-wrapper")
+    }
+
+    private func clientWrapperIconURL() -> URL? {
+        if let override = ProcessInfo.processInfo.environment["MCPELAUNCHER_CLIENT_WRAPPER_ICON_PATH"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        let iconFile = Bundle.main.object(forInfoDictionaryKey: "CFBundleIconFile") as? String
+        let iconName = iconFile?.replacingOccurrences(of: ".icns", with: "") ?? "minecraft-bedrock"
+        return Bundle.main.url(forResource: iconName, withExtension: "icns")
     }
 
     private func runtimeURL() -> URL {

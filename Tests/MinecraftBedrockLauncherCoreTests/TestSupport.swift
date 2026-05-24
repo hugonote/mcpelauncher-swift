@@ -31,6 +31,24 @@ struct MockProcessRunner: ProcessRunning, @unchecked Sendable {
     }
 }
 
+final class MockRuntimeApplicationLauncher: RuntimeApplicationLaunching, @unchecked Sendable {
+    struct Launch {
+        var appURL: URL
+        var arguments: [String]
+        var environment: [String: String]
+    }
+
+    var launches: [Launch] = []
+    var error: Error?
+
+    func launchApplication(at appURL: URL, arguments: [String], environment: [String: String]) throws {
+        if let error {
+            throw error
+        }
+        launches.append(Launch(appURL: appURL, arguments: arguments, environment: environment))
+    }
+}
+
 func writeExecutable(_ url: URL, contents: String = "#!/bin/zsh\nexit 0\n") throws {
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try contents.write(to: url, atomically: true, encoding: .utf8)

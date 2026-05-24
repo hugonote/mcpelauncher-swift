@@ -7,15 +7,23 @@ public enum RuntimeWarmUpResult: Equatable, Sendable {
 }
 
 public struct RuntimeLauncher: @unchecked Sendable {
+    private static let clientAppName = "Minecraft Bedrock"
+    private static let clientWrapperExecutableName = "mcpelauncher-client-wrapper"
+    private static let clientIconName = "minecraft-bedrock"
+    private static let clientBundleIdentifier = "local.minecraft.bedrock.swiftlauncher.client"
+
     private let fileManager: FileManager
     private let processRunner: ProcessRunning
+    private let applicationLauncher: any RuntimeApplicationLaunching
 
     public init(
         fileManager: FileManager = .default,
-        processRunner: ProcessRunning = FoundationProcessRunner()
+        processRunner: ProcessRunning = FoundationProcessRunner(),
+        applicationLauncher: any RuntimeApplicationLaunching = NSWorkspaceRuntimeApplicationLauncher()
     ) {
         self.fileManager = fileManager
         self.processRunner = processRunner
+        self.applicationLauncher = applicationLauncher
     }
 
     public func launch(
@@ -108,7 +116,9 @@ public struct RuntimeLauncher: @unchecked Sendable {
         cachePath: URL? = nil,
         credentialsHelperDirectory: URL? = nil,
         googleCredential: GoogleCredential? = nil,
-        logURL: URL? = nil
+        logURL: URL? = nil,
+        clientWrapperExecutableURL: URL? = nil,
+        clientWrapperIconURL: URL? = nil
     ) throws {
         let command = try launchCommand(
             runtimePath: runtimePath,
@@ -121,10 +131,45 @@ public struct RuntimeLauncher: @unchecked Sendable {
         )
 
         let mayExposeGoogleCredentials = googleCredential != nil
+        let capturesProcessOutput = !mayExposeGoogleCredentials
+
+        if let clientWrapperExecutableURL,
+           fileManager.isExecutableFile(atPath: clientWrapperExecutableURL.path) {
+            let appURL = try prepareClientAppBundle(
+                runtimePath: runtimePath,
+                clientWrapperExecutableURL: clientWrapperExecutableURL,
+                iconURL: clientWrapperIconURL
+            )
+            var environment = command.environment
+            environment[RuntimeClientWrapperEnvironment.executableKey] = command.executableURL.path
+            environment[RuntimeClientWrapperEnvironment.workingDirectoryKey] = command.currentDirectoryURL.path
+            if capturesProcessOutput, let logURL {
+                environment[RuntimeClientWrapperEnvironment.outputLogKey] = logURL.path
+            }
+
+            _ = try writeDetachedLaunchLog(
+                command,
+                logURL: logURL,
+                capturesProcessOutput: capturesProcessOutput,
+                appBundleURL: appURL
+            )
+            do {
+                try applicationLauncher.launchApplication(
+                    at: appURL,
+                    arguments: command.arguments,
+                    environment: environment
+                )
+            } catch {
+                GoogleCredentialFileTransfer.removeCredentialFile(at: command.credentialFileURL, fileManager: fileManager)
+                throw error
+            }
+            return
+        }
+
         let outputHandle = try writeDetachedLaunchLog(
             command,
             logURL: logURL,
-            capturesProcessOutput: !mayExposeGoogleCredentials
+            capturesProcessOutput: capturesProcessOutput
         )
 
         let process = Process()
@@ -288,6 +333,10 @@ public struct RuntimeLauncher: @unchecked Sendable {
         return executableURL.deletingLastPathComponent()
     }
 
+    func runtimeClientAppBundleURL(in runtimePath: URL) -> URL {
+        runtimePath.appendingPathComponent("\(Self.clientAppName).app", isDirectory: true)
+    }
+
     private func launchCommand(
         runtimePath: URL,
         version: InstalledVersion,
@@ -391,16 +440,82 @@ public struct RuntimeLauncher: @unchecked Sendable {
         try text.write(to: logURL, atomically: true, encoding: .utf8)
     }
 
-    private func writeDetachedLaunchLog(_ command: LaunchCommand, logURL: URL?, capturesProcessOutput: Bool) throws -> FileHandle? {
+    private func prepareClientAppBundle(
+        runtimePath: URL,
+        clientWrapperExecutableURL: URL,
+        iconURL: URL?
+    ) throws -> URL {
+        let appURL = runtimeClientAppBundleURL(in: runtimePath)
+        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
+        let macOSURL = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
+        let resourcesURL = contentsURL.appendingPathComponent("Resources", isDirectory: true)
+        try fileManager.createDirectory(at: macOSURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
+
+        let wrapperDestinationURL = macOSURL.appendingPathComponent(Self.clientWrapperExecutableName, isDirectory: false)
+        try copyItemReplacingExisting(from: clientWrapperExecutableURL, to: wrapperDestinationURL)
+        try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: wrapperDestinationURL.path)
+
+        if let iconURL, fileManager.fileExists(atPath: iconURL.path) {
+            let iconDestinationURL = resourcesURL.appendingPathComponent("\(Self.clientIconName).icns", isDirectory: false)
+            try copyItemReplacingExisting(from: iconURL, to: iconDestinationURL)
+        }
+
+        let info: [String: Any] = [
+            "CFBundleDevelopmentRegion": "en",
+            "CFBundleDisplayName": Self.clientAppName,
+            "CFBundleExecutable": Self.clientWrapperExecutableName,
+            "CFBundleIdentifier": Self.clientBundleIdentifier,
+            "CFBundleIconFile": Self.clientIconName,
+            "CFBundleIconName": Self.clientIconName,
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "CFBundleName": Self.clientAppName,
+            "CFBundlePackageType": "APPL",
+            "CFBundleShortVersionString": "1.0",
+            "CFBundleVersion": "1",
+            "GCSupportsGameMode": true,
+            "LSApplicationCategoryType": "public.app-category.games",
+            "LSMinimumSystemVersion": "14.0",
+            "LSSupportsGameMode": true,
+            "NSHighResolutionCapable": true
+        ]
+        let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+        try data.write(to: contentsURL.appendingPathComponent("Info.plist", isDirectory: false), options: .atomic)
+        return appURL
+    }
+
+    private func copyItemReplacingExisting(from sourceURL: URL, to destinationURL: URL) throws {
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try fileManager.createDirectory(
+            at: destinationURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try fileManager.copyItem(at: sourceURL, to: destinationURL)
+    }
+
+    private func writeDetachedLaunchLog(
+        _ command: LaunchCommand,
+        logURL: URL?,
+        capturesProcessOutput: Bool,
+        appBundleURL: URL? = nil
+    ) throws -> FileHandle? {
         guard let logURL else {
             return nil
         }
-        let outputNote = capturesProcessOutput
-            ? ""
-            : "omitted because Google credentials may pass through the launcher helper protocol\n"
+        let outputNote: String
+        if !capturesProcessOutput {
+            outputNote = "omitted because Google credentials may pass through the launcher helper protocol\n"
+        } else if appBundleURL != nil {
+            outputNote = "captured by mcpelauncher-client-wrapper\n"
+        } else {
+            outputNote = ""
+        }
+        let appBundleText = appBundleURL.map { "app bundle: \($0.path)\n" } ?? ""
         let text = """
         executable: \(command.executableURL.path)
-        arguments: \(command.arguments.joined(separator: " "))
+        \(appBundleText)arguments: \(command.arguments.joined(separator: " "))
         cwd: \(command.currentDirectoryURL.path)
         status: detached
 
@@ -409,7 +524,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         """
         try fileManager.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: logURL, atomically: true, encoding: .utf8)
-        guard capturesProcessOutput else {
+        guard capturesProcessOutput, appBundleURL == nil else {
             return nil
         }
         let handle = try FileHandle(forWritingTo: logURL)
@@ -495,6 +610,12 @@ private struct LaunchCommand {
     var currentDirectoryURL: URL
     var environment: [String: String]
     var credentialFileURL: URL?
+}
+
+enum RuntimeClientWrapperEnvironment {
+    static let executableKey = "MCPELAUNCHER_CLIENT_EXECUTABLE"
+    static let workingDirectoryKey = "MCPELAUNCHER_CLIENT_WORKING_DIRECTORY"
+    static let outputLogKey = "MCPELAUNCHER_CLIENT_OUTPUT_LOG"
 }
 
 private final class RuntimeWarmUpOutputTail: @unchecked Sendable {

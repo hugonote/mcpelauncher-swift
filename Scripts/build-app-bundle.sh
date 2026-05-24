@@ -35,6 +35,11 @@ swift build \
   -c "$CONFIGURATION" \
   --product mcpelauncher-webview
 
+swift build \
+  --package-path "$PACKAGE_DIR" \
+  -c "$CONFIGURATION" \
+  --product mcpelauncher-client-wrapper
+
 BUILD_DIR="$(swift build --package-path "$PACKAGE_DIR" -c "$CONFIGURATION" --show-bin-path)"
 
 mkdir -p "$APP_DIR/Contents/MacOS"
@@ -89,6 +94,8 @@ cp "$BUILD_DIR/mcpelauncher-ui-qt" "$APP_DIR/Contents/Helpers/mcpelauncher-ui-qt
 chmod 755 "$APP_DIR/Contents/Helpers/mcpelauncher-ui-qt"
 cp "$BUILD_DIR/mcpelauncher-webview" "$APP_DIR/Contents/Helpers/mcpelauncher-webview"
 chmod 755 "$APP_DIR/Contents/Helpers/mcpelauncher-webview"
+cp "$BUILD_DIR/mcpelauncher-client-wrapper" "$APP_DIR/Contents/Helpers/mcpelauncher-client-wrapper"
+chmod 755 "$APP_DIR/Contents/Helpers/mcpelauncher-client-wrapper"
 
 SPARKLE_FRAMEWORK="$(find "$PACKAGE_DIR/.build" -path "*/Sparkle.framework" -type d -print -quit)"
 if [[ -z "$SPARKLE_FRAMEWORK" ]]; then

@@ -20,6 +20,10 @@ let package = Package(
             name: "mcpelauncher-webview",
             targets: ["MinecraftBedrockWebView"]
         ),
+        .executable(
+            name: "mcpelauncher-client-wrapper",
+            targets: ["MinecraftBedrockClientWrapper"]
+        ),
         .library(
             name: "MinecraftBedrockLauncherCore",
             targets: ["MinecraftBedrockLauncherCore"]
@@ -45,6 +49,9 @@ let package = Package(
         ),
         .executableTarget(
             name: "MinecraftBedrockWebView"
+        ),
+        .executableTarget(
+            name: "MinecraftBedrockClientWrapper"
         ),
         .testTarget(
             name: "MinecraftBedrockLauncherCoreTests",

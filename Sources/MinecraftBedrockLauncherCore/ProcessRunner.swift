@@ -71,15 +71,51 @@ public struct FoundationProcessRunner: ProcessRunning {
 
         try process.run()
 
+        let group = DispatchGroup()
+        let stdoutData = ProcessOutputBuffer()
+        let stderrData = ProcessOutputBuffer()
+        Self.drain(stdout.fileHandleForReading, into: stdoutData, group: group)
+        Self.drain(stderr.fileHandleForReading, into: stderrData, group: group)
+
         if let input, let stdin {
             stdin.fileHandleForWriting.write(input)
             try? stdin.fileHandleForWriting.close()
         }
 
         process.waitUntilExit()
+        group.wait()
 
-        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
-        return ProcessResult(status: process.terminationStatus, stdout: outData, stderr: errData)
+        return ProcessResult(status: process.terminationStatus, stdout: stdoutData.data(), stderr: stderrData.data())
+    }
+
+    private static func drain(_ fileHandle: FileHandle, into output: ProcessOutputBuffer, group: DispatchGroup) {
+        group.enter()
+        DispatchQueue.global(qos: .utility).async {
+            while true {
+                let chunk = fileHandle.availableData
+                if chunk.isEmpty {
+                    break
+                }
+                output.append(chunk)
+            }
+            group.leave()
+        }
+    }
+}
+
+private final class ProcessOutputBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer = Data()
+
+    func append(_ data: Data) {
+        lock.lock()
+        buffer.append(data)
+        lock.unlock()
+    }
+
+    func data() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return buffer
     }
 }

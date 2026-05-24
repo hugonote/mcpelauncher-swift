@@ -162,6 +162,37 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertEqual(capture.currentDirectoryURL, runtimeRootURL)
     }
 
+    func testRuntimeInstallRejectsSplitAndroidShimLibraries() async throws {
+        let temp = try TemporaryDirectory()
+        let paths = AppPaths(baseURL: temp.url.appendingPathComponent("AppData", isDirectory: true))
+        let archiveURL = temp.url.appendingPathComponent("runtime.zip", isDirectory: false)
+        try Data("archive".utf8).write(to: archiveURL)
+        let runner = MockProcessRunner { _, arguments, _, _, _ in
+            let extractURL = URL(fileURLWithPath: arguments[3], isDirectory: true)
+            let runtimeURL = extractURL.appendingPathComponent("RuntimeRoot", isDirectory: true)
+            try writeExecutable(runtimeURL.appendingPathComponent("bin/mcpelauncher-client", isDirectory: false))
+            try writeTestFile(runtimeURL.appendingPathComponent(
+                "share/mcpelauncher/lib/arm64-v8a/libc.so",
+                isDirectory: false
+            ))
+            try writeTestFile(runtimeURL.appendingPathComponent(
+                "Resources/mcpelauncher/lib/arm64-v8a/liblog.so",
+                isDirectory: false
+            ))
+            try writeTestGraphicsFrameworks(in: runtimeURL)
+            return ProcessResult(status: 0, stdout: Data(), stderr: Data())
+        }
+        let manager = RuntimeManager(paths: paths, processRunner: runner)
+        let release = RuntimeRelease(version: "test", assetName: "runtime.zip", downloadURL: archiveURL)
+
+        do {
+            _ = try await manager.install(release)
+            XCTFail("Expected runtime install to reject split Android shim libraries.")
+        } catch LauncherError.runtimeInstallFailed(let message) {
+            XCTAssertTrue(message.contains("Android shim libraries"))
+        }
+    }
+
     func testRuntimeLauncherPassesCompatibilityPatchAndRuntimeDataPath() throws {
         let temp = try TemporaryDirectory()
         let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)
@@ -435,4 +466,16 @@ final class RuntimeManagerTests: XCTestCase {
         )
         return InstalledVersion(versionName: "1.26.20.4", versionCode: 972602004, installPath: versionURL)
     }
+}
+
+private func writeTestFile(_ url: URL, contents: String = "") throws {
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data(contents.utf8).write(to: url)
+}
+
+private func writeTestGraphicsFrameworks(in runtimeURL: URL) throws {
+    let rootURL = runtimeURL.appendingPathComponent("Frameworks/mvk-angle", isDirectory: true)
+    try writeTestFile(rootURL.appendingPathComponent("libEGL.dylib", isDirectory: false))
+    try writeTestFile(rootURL.appendingPathComponent("libGLESv2.dylib", isDirectory: false))
+    try writeTestFile(rootURL.appendingPathComponent("MoltenVK_icd.json", isDirectory: false))
 }

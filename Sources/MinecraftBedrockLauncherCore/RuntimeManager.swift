@@ -410,18 +410,21 @@ public struct RuntimeManager: @unchecked Sendable {
     }
 
     private func hasLauncherDataFiles(at runtimeURL: URL) -> Bool {
-        let candidates = [
-            "share/mcpelauncher/lib/arm64-v8a/libc.so",
-            "share/mcpelauncher/lib/arm64-v8a/liblog.so",
-            "Resources/mcpelauncher/lib/arm64-v8a/libc.so",
-            "Resources/mcpelauncher/lib/arm64-v8a/liblog.so",
-            "Resources/Minecraft Bedrock/mcpelauncher-client/lib/arm64-v8a/libc.so",
-            "Resources/Minecraft Bedrock/mcpelauncher-client/lib/arm64-v8a/liblog.so",
-            "mcpelauncher-client/lib/arm64-v8a/libc.so",
-            "mcpelauncher-client/lib/arm64-v8a/liblog.so"
+        let roots = [
+            "share/mcpelauncher",
+            "Resources/mcpelauncher",
+            "Resources/Minecraft Bedrock/mcpelauncher-client",
+            "mcpelauncher-client"
         ]
-        return candidates.contains {
-            fileManager.fileExists(atPath: runtimeURL.appendingPathComponent($0, isDirectory: false).path)
+        let requiredLibraries = [
+            "lib/arm64-v8a/libc.so",
+            "lib/arm64-v8a/liblog.so"
+        ]
+        return roots.contains { root in
+            let rootURL = runtimeURL.appendingPathComponent(root, isDirectory: true)
+            return requiredLibraries.allSatisfy {
+                fileManager.fileExists(atPath: rootURL.appendingPathComponent($0, isDirectory: false).path)
+            }
         }
     }
 

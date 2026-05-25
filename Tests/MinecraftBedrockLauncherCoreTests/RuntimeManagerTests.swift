@@ -271,7 +271,7 @@ final class RuntimeManagerTests: XCTestCase {
         let runner = MockProcessRunner { _, _, _, _, _ in
             ProcessResult(
                 status: 6,
-                stdout: Data("stdout line\nCRED=u@example.com:master-token\n".utf8),
+                stdout: Data("stdout line\n12:23:24 Warn  [Minecraft] NO LOG FILE! - Image failed to load from memory \tReason: unknown image type\nCRED=u@example.com:master-token\n".utf8),
                 stderr: Data("Failed to find data file: lib/arm64-v8a/libc.so".utf8)
             )
         }
@@ -286,6 +286,7 @@ final class RuntimeManagerTests: XCTestCase {
             XCTAssertEqual(status, 6)
             XCTAssertEqual(capturedLogURL, logURL)
             XCTAssertTrue(outputTail.contains("Failed to find data file"))
+            XCTAssertFalse(outputTail.contains("NO LOG FILE! - Image failed to load from memory"))
             XCTAssertFalse(outputTail.contains("master-token"))
             XCTAssertTrue(outputTail.contains("CRED=<redacted>"))
         }
@@ -293,11 +294,12 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertTrue(log.contains("status: 6"))
         XCTAssertTrue(log.contains("stdout line"))
         XCTAssertTrue(log.contains("Failed to find data file"))
+        XCTAssertFalse(log.contains("NO LOG FILE! - Image failed to load from memory"))
         XCTAssertFalse(log.contains("master-token"))
         XCTAssertTrue(log.contains("CRED=<redacted>"))
     }
 
-    func testDetachedLaunchOmitsProcessOutputWhenCredentialHelperMayBeRequested() throws {
+    func testDetachedLaunchCapturesProcessOutputWhenCredentialHelperMayBeRequested() throws {
         let temp = try TemporaryDirectory()
         let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)
         let executableURL = runtimeURL.appendingPathComponent("MacOS/mcpelauncher-client-arm64-v8a", isDirectory: false)
@@ -323,9 +325,14 @@ final class RuntimeManagerTests: XCTestCase {
             logURL: logURL
         )
 
-        let log = try String(contentsOf: logURL)
-        XCTAssertTrue(log.contains("omitted because Google credentials may pass through the launcher helper protocol"))
-        XCTAssertFalse(log.contains("master-token"))
+        var log = try String(contentsOf: logURL)
+        for _ in 0..<50 where !log.contains("CRED=u@example.com:master-token") {
+            Thread.sleep(forTimeInterval: 0.02)
+            log = try String(contentsOf: logURL)
+        }
+        XCTAssertTrue(log.contains("CRED=u@example.com:master-token"))
+        let attributes = try FileManager.default.attributesOfItem(atPath: logURL.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
     }
 
     func testDetachedLaunchUsesGeneratedGameModeAppBundleWhenWrapperIsAvailable() throws {
@@ -390,6 +397,7 @@ final class RuntimeManagerTests: XCTestCase {
         let executableURL = runtimeURL.appendingPathComponent("bin/mcpelauncher-client", isDirectory: false)
         let versionURL = temp.url.appendingPathComponent("Game", isDirectory: true)
         let wrapperURL = temp.url.appendingPathComponent("Helpers/mcpelauncher-client-wrapper", isDirectory: false)
+        let logURL = temp.url.appendingPathComponent("Logs/launch.log", isDirectory: false)
         try writeExecutable(executableURL)
         try writeExecutable(wrapperURL)
         try FileManager.default.createDirectory(at: versionURL, withIntermediateDirectories: true)
@@ -404,6 +412,7 @@ final class RuntimeManagerTests: XCTestCase {
             runtimePath: runtimeURL,
             version: version,
             googleCredential: GoogleCredential(email: "u@example.com", masterToken: "master"),
+            logURL: logURL,
             clientWrapperExecutableURL: wrapperURL
         )
 
@@ -415,6 +424,7 @@ final class RuntimeManagerTests: XCTestCase {
             )
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: credentialPath))
+        XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.outputLogKey], logURL.path)
     }
 
     func testRuntimeWarmUpTerminatesAfterPairIPLoads() throws {

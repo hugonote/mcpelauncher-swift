@@ -133,8 +133,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
             googleCredential: googleCredential
         )
 
-        let mayExposeGoogleCredentials = googleCredential != nil
-        let capturesProcessOutput = !mayExposeGoogleCredentials
+        let capturesProcessOutput = logURL != nil
 
         if let clientWrapperExecutableURL,
            fileManager.isExecutableFile(atPath: clientWrapperExecutableURL.path) {
@@ -450,6 +449,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         """
         try fileManager.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: logURL, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: logURL.path)
     }
 
     private func prepareClientAppBundle(
@@ -516,14 +516,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         guard let logURL else {
             return nil
         }
-        let outputNote: String
-        if !capturesProcessOutput {
-            outputNote = "omitted because Google credentials may pass through the launcher helper protocol\n"
-        } else if appBundleURL != nil {
-            outputNote = "captured by mcpelauncher-client-wrapper\n"
-        } else {
-            outputNote = ""
-        }
+        let outputNote = appBundleURL == nil ? "" : "captured by mcpelauncher-client-wrapper\n"
         let appBundleText = appBundleURL.map { "app bundle: \($0.path)\n" } ?? ""
         let text = """
         executable: \(command.executableURL.path)
@@ -536,6 +529,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         """
         try fileManager.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: logURL, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: logURL.path)
         guard capturesProcessOutput, appBundleURL == nil else {
             return nil
         }
@@ -564,6 +558,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         """
         try fileManager.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: logURL, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: logURL.path)
     }
 
     private static func didLoadPairIP(_ output: String) -> Bool {
@@ -597,11 +592,20 @@ public struct RuntimeLauncher: @unchecked Sendable {
     }
 
     private static func redactedText(_ text: String) -> String {
-        text.replacingOccurrences(
+        let redacted = text.replacingOccurrences(
             of: #"(?m)CRED=.*$"#,
             with: "CRED=<redacted>",
             options: .regularExpression
         )
+        return redacted
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !isNoisyImageDecodeLine(String($0)) }
+            .joined(separator: "\n")
+    }
+
+    private static func isNoisyImageDecodeLine(_ line: String) -> Bool {
+        line.contains("NO LOG FILE! - Image failed to load from memory")
+            && line.contains("Reason: unknown image type")
     }
 
     private static func redactedEnvironmentValue(key: String, value: String) -> String {

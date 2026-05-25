@@ -1,30 +1,15 @@
 import Darwin
-import Dispatch
 import Foundation
 
+private let cleanupArgument = "--cleanup-credential-file"
 private let executableEnvironmentKey = "MCPELAUNCHER_CLIENT_EXECUTABLE"
 private let workingDirectoryEnvironmentKey = "MCPELAUNCHER_CLIENT_WORKING_DIRECTORY"
 private let outputLogEnvironmentKey = "MCPELAUNCHER_CLIENT_OUTPUT_LOG"
 private let googleCredentialFileEnvironmentKey = "MCPELAUNCHER_GOOGLE_CREDENTIAL_FILE"
 
-private final class ChildProcessBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var process: Process?
-
-    func set(_ process: Process?) {
-        lock.lock()
-        self.process = process
-        lock.unlock()
-    }
-
-    func terminate() {
-        lock.lock()
-        let process = self.process
-        lock.unlock()
-        if process?.isRunning == true {
-            process?.terminate()
-        }
-    }
+private func fail(_ message: String, status: Int32) -> Never {
+    FileHandle.standardError.write(Data("mcpelauncher-client-wrapper: \(message)\n".utf8))
+    exit(status)
 }
 
 private func defaultRuntimeURL() -> URL {
@@ -39,6 +24,92 @@ private func removeCredentialFile(at path: String?) {
     try? FileManager.default.removeItem(at: directoryURL)
 }
 
+private func waitForProcessExit(pid: pid_t) {
+    let queue = kqueue()
+    guard queue >= 0 else {
+        waitForProcessExitByPolling(pid: pid)
+        return
+    }
+    defer {
+        close(queue)
+    }
+
+    var event = kevent(
+        ident: UInt(pid),
+        filter: Int16(EVFILT_PROC),
+        flags: UInt16(EV_ADD | EV_ENABLE),
+        fflags: UInt32(NOTE_EXIT),
+        data: 0,
+        udata: nil
+    )
+    let registration = withUnsafePointer(to: &event) { pointer in
+        pointer.withMemoryRebound(to: kevent.self, capacity: 1) { reboundPointer in
+            kevent(queue, reboundPointer, 1, nil, 0, nil)
+        }
+    }
+    guard registration == 0 else {
+        if errno != ESRCH {
+            waitForProcessExitByPolling(pid: pid)
+        }
+        return
+    }
+
+    var exitEvent = kevent()
+    _ = withUnsafeMutablePointer(to: &exitEvent) { pointer in
+        pointer.withMemoryRebound(to: kevent.self, capacity: 1) { reboundPointer in
+            kevent(queue, nil, 0, reboundPointer, 1, nil)
+        }
+    }
+}
+
+private func waitForProcessExitByPolling(pid: pid_t) {
+    while kill(pid, 0) == 0 || errno == EPERM {
+        sleep(1)
+    }
+}
+
+private func runCredentialCleanupHelper(arguments: [String]) -> Never {
+    guard arguments.count == 3,
+          let pid = pid_t(arguments[1]) else {
+        exit(64)
+    }
+
+    waitForProcessExit(pid: pid)
+    removeCredentialFile(at: arguments[2])
+    exit(0)
+}
+
+private func wrapperExecutableURL() -> URL {
+    if let executableURL = Bundle.main.executableURL {
+        return executableURL
+    }
+    return URL(fileURLWithPath: CommandLine.arguments[0], isDirectory: false)
+}
+
+private func startCredentialCleanupHelper(for credentialFilePath: String?) throws {
+    guard let credentialFilePath, !credentialFilePath.isEmpty else {
+        return
+    }
+
+    let process = Process()
+    process.executableURL = wrapperExecutableURL()
+    process.arguments = [
+        cleanupArgument,
+        String(getpid()),
+        credentialFilePath
+    ]
+    process.environment = [:]
+    process.standardInput = FileHandle.nullDevice
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+}
+
+let wrapperArguments = Array(CommandLine.arguments.dropFirst())
+if wrapperArguments.first == cleanupArgument {
+    runCredentialCleanupHelper(arguments: wrapperArguments)
+}
+
 let environment = ProcessInfo.processInfo.environment
 let runtimeURL = defaultRuntimeURL()
 let executablePath = environment[executableEnvironmentKey]
@@ -46,13 +117,9 @@ let executablePath = environment[executableEnvironmentKey]
 let workingDirectoryPath = environment[workingDirectoryEnvironmentKey] ?? runtimeURL.path
 let credentialFilePath = environment[googleCredentialFileEnvironmentKey]
 
-let finish: (Int32) -> Never = { status in
-    removeCredentialFile(at: credentialFilePath)
-    exit(status)
-}
 let failWithCleanup: (String, Int32) -> Never = { message, status in
-    FileHandle.standardError.write(Data("mcpelauncher-client-wrapper: \(message)\n".utf8))
-    finish(status)
+    removeCredentialFile(at: credentialFilePath)
+    fail(message, status: status)
 }
 
 guard FileManager.default.isExecutableFile(atPath: executablePath) else {
@@ -72,50 +139,28 @@ if let outputLogPath = environment[outputLogEnvironmentKey], !outputLogPath.isEm
     close(descriptor)
 }
 
-var childEnvironment = environment
-childEnvironment.removeValue(forKey: executableEnvironmentKey)
-childEnvironment.removeValue(forKey: workingDirectoryEnvironmentKey)
-childEnvironment.removeValue(forKey: outputLogEnvironmentKey)
-
-private let childProcess = ChildProcessBox()
-private var signalSources: [DispatchSourceSignal] = []
-
-let process = Process()
-process.executableURL = URL(fileURLWithPath: executablePath, isDirectory: false)
-process.arguments = Array(CommandLine.arguments.dropFirst())
-process.currentDirectoryURL = URL(fileURLWithPath: workingDirectoryPath, isDirectory: true)
-process.environment = childEnvironment
-process.standardInput = FileHandle.nullDevice
-process.standardOutput = FileHandle.standardOutput
-process.standardError = FileHandle.standardError
-
 do {
-    try process.run()
+    try startCredentialCleanupHelper(for: credentialFilePath)
 } catch {
-    failWithCleanup(error.localizedDescription, 127)
+    failWithCleanup("could not start credential cleanup helper: \(error.localizedDescription)", 74)
 }
-childProcess.set(process)
-for signalNumber in [SIGTERM, SIGINT, SIGHUP] {
-    signal(signalNumber, SIG_IGN)
-    let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .global(qos: .userInitiated))
-    source.setEventHandler {
-        childProcess.terminate()
-    }
-    source.resume()
-    signalSources.append(source)
-}
-process.waitUntilExit()
-childProcess.set(nil)
 
-switch process.terminationReason {
-case .exit:
-    finish(process.terminationStatus)
-case .uncaughtSignal:
-    let status = 128 + process.terminationStatus
-    if status > Int32(UInt8.max) {
-        finish(128)
+unsetenv(executableEnvironmentKey)
+unsetenv(workingDirectoryEnvironmentKey)
+unsetenv(outputLogEnvironmentKey)
+
+var arguments = [executablePath]
+arguments.append(contentsOf: CommandLine.arguments.dropFirst())
+var cArguments = arguments.map { strdup($0) }
+cArguments.append(nil)
+defer {
+    for pointer in cArguments {
+        free(pointer)
     }
-    finish(status)
-@unknown default:
-    finish(process.terminationStatus)
 }
+
+_ = cArguments.withUnsafeMutableBufferPointer { buffer in
+    execv(executablePath, buffer.baseAddress)
+}
+
+failWithCleanup(String(cString: strerror(errno)), 127)

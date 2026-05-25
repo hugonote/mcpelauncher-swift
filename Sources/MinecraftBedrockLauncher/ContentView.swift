@@ -453,7 +453,7 @@ struct ContentView: View {
     }
 
     private var playSideButton: some View {
-        let isDisabled = model.isGooglePlayBusy || model.isRuntimeBusy
+        let isDisabled = model.isGooglePlayBusy || model.isRuntimeBusy || model.isLaunchingGame
 
         return Button {
             Task { await model.playSelected(captureLog: shouldCapturePlayLog) }
@@ -782,7 +782,7 @@ struct ContentView: View {
     }
 
     private var isPrimaryButtonDisabled: Bool {
-        if model.isGooglePlayBusy || model.isRuntimeBusy {
+        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isLaunchingGame {
             return true
         }
         if model.canUseSelectedVersion {

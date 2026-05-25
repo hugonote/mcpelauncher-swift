@@ -23,6 +23,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var updateWarningText: String?
     @Published var credentialAccessDenied = false
     @Published var selectedVersionWarning: String?
+    @Published private(set) var isLaunchingGame = false
     @Published var showingLogin = false
     @Published var canSkipRuntimeUpdateCheck = false
     @Published var isDeletingRuntime = false
@@ -65,7 +66,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     var isStorageActionBusy: Bool {
-        isDeletingRuntime || isDeletingGame || isDeletingData || isGooglePlayBusy || isRuntimeBusy
+        isDeletingRuntime || isDeletingGame || isDeletingData || isGooglePlayBusy || isRuntimeBusy || isLaunchingGame
     }
 
     var isRuntimeReady: Bool {
@@ -674,15 +675,21 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func playSelected(captureLog: Bool = false) async {
+        guard !isLaunchingGame else {
+            return
+        }
+        isLaunchingGame = true
         do {
             errorText = nil
             isBlockingNetworkUnavailable = false
             updateWarningText = nil
             guard let selectedVersion else {
+                isLaunchingGame = false
                 statusText = "Install a version first."
                 return
             }
             guard let runtimePath = await ensureRuntimeForUse() else {
+                isLaunchingGame = false
                 return
             }
             let patchPath = try await compatibilityPatchPath(for: selectedVersion)
@@ -734,6 +741,7 @@ final class LauncherViewModel: ObservableObject {
                 statusText = "Minecraft exited."
             }
         } catch {
+            isLaunchingGame = false
             downloadState = DownloadState(versionName: selectedVersion?.versionName, phase: .failed, error: error.localizedDescription)
             show(error)
         }

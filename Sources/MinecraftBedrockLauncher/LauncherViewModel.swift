@@ -4,6 +4,10 @@ import MinecraftBedrockLauncherCore
 import CoreGraphics
 import Network
 
+private struct PendingGameLaunch {
+    var captureLog: Bool
+}
+
 @MainActor
 final class LauncherViewModel: ObservableObject {
     @Published var credential: GoogleCredential?
@@ -25,6 +29,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var selectedVersionWarning: String?
     @Published private(set) var isLaunchingGame = false
     @Published var showingLogin = false
+    @Published var isShowingRunningGameWarning = false
     @Published var canSkipRuntimeUpdateCheck = false
     @Published var isDeletingRuntime = false
     @Published var isDeletingGame = false
@@ -114,6 +119,7 @@ final class LauncherViewModel: ObservableObject {
     private var downloadStallTask: Task<Void, Never>?
     private var activeDownloadTask: Task<Void, Never>?
     private var activeDownloadID: UUID?
+    private var pendingRunningGameLaunch: PendingGameLaunch?
 
     init(
         paths: AppPaths? = nil,
@@ -674,20 +680,25 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    func playSelected(captureLog: Bool = false) async {
+    func playSelected(captureLog: Bool = false, allowsRunningGame: Bool = false) async {
         guard !isLaunchingGame else {
             return
         }
-        isLaunchingGame = true
         do {
             errorText = nil
             isBlockingNetworkUnavailable = false
             updateWarningText = nil
             guard let selectedVersion else {
-                isLaunchingGame = false
                 statusText = "Install a version first."
                 return
             }
+            if !allowsRunningGame, isMinecraftAlreadyRunning {
+                pendingRunningGameLaunch = PendingGameLaunch(captureLog: captureLog)
+                isShowingRunningGameWarning = true
+                statusText = "Minecraft is already running."
+                return
+            }
+            isLaunchingGame = true
             guard let runtimePath = await ensureRuntimeForUse() else {
                 isLaunchingGame = false
                 return
@@ -745,6 +756,23 @@ final class LauncherViewModel: ObservableObject {
             downloadState = DownloadState(versionName: selectedVersion?.versionName, phase: .failed, error: error.localizedDescription)
             show(error)
         }
+    }
+
+    func cancelRunningGameWarning() {
+        pendingRunningGameLaunch = nil
+        isShowingRunningGameWarning = false
+        statusText = "Minecraft is already running."
+    }
+
+    func launchAnywayAfterRunningGameWarning() async {
+        let pendingLaunch = pendingRunningGameLaunch ?? PendingGameLaunch(captureLog: false)
+        pendingRunningGameLaunch = nil
+        isShowingRunningGameWarning = false
+        await playSelected(captureLog: pendingLaunch.captureLog, allowsRunningGame: true)
+    }
+
+    private var isMinecraftAlreadyRunning: Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: RuntimeLauncher.clientBundleIdentifier).isEmpty
     }
 
     private func prepareFirstLaunchUntilReady(

@@ -10,7 +10,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
     private static let clientAppName = "Minecraft Bedrock"
     private static let clientWrapperExecutableName = "mcpelauncher-client-wrapper"
     private static let clientIconName = "minecraft-bedrock"
-    private static let clientBundleIdentifier = "local.minecraft.bedrock.swiftlauncher.client"
+    public static let clientBundleIdentifier = "local.minecraft.bedrock.swiftlauncher.client"
 
     private let fileManager: FileManager
     private let processRunner: ProcessRunning

@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var isStartupComplete = false
     @State private var isTitleIconVisible = false
     @State private var isOptionKeyPressed = false
+    @State private var isPresentingRunningGameWarning = false
     @State private var modifierFlagsMonitor: Any?
     @State private var window: NSWindow?
     @Environment(\.openSettings) private var openSettings
@@ -70,6 +71,11 @@ struct ContentView: View {
         .onChange(of: model.runtimeState) { _, _ in
             updateDockProgress()
         }
+        .onChange(of: model.isShowingRunningGameWarning) { _, isShowing in
+            if isShowing {
+                presentRunningGameWarning()
+            }
+        }
         .onAppear {
             installModifierFlagsMonitor()
         }
@@ -91,6 +97,43 @@ struct ContentView: View {
 
     private func updateDockProgress() {
         DockProgressController.shared.update(downloadState: model.downloadState, runtimeState: model.runtimeState)
+    }
+
+    private func presentRunningGameWarning() {
+        guard !isPresentingRunningGameWarning else {
+            return
+        }
+        isPresentingRunningGameWarning = true
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.icon = NSImage(named: NSImage.cautionName)
+        alert.messageText = "Minecraft is already running"
+        alert.informativeText = """
+        Launching another copy will use the same worlds, settings, and cache. This can corrupt saved data or leave Minecraft in an inconsistent state.
+
+        Continue only if you know why you need another copy.
+        """
+        let cancelButton = alert.addButton(withTitle: "Cancel")
+        cancelButton.keyEquivalent = "\r"
+        let launchButton = alert.addButton(withTitle: "Launch Anyway")
+        launchButton.keyEquivalent = ""
+        launchButton.hasDestructiveAction = true
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { response in
+            isPresentingRunningGameWarning = false
+            if response == .alertSecondButtonReturn {
+                Task { await model.launchAnywayAfterRunningGameWarning() }
+            } else {
+                model.cancelRunningGameWarning()
+            }
+        }
+
+        if let window {
+            alert.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            handleResponse(alert.runModal())
+        }
     }
 
     private func playTitleIconEntranceIfNeeded() {

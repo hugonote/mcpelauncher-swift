@@ -1,11 +1,41 @@
 import AppKit
+import Darwin
 import MinecraftBedrockLauncherCore
 import Sparkle
 import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private static let openExistingInstanceNotification = Notification.Name(
+        "local.minecraft.bedrock.swiftlauncher.openExistingInstance"
+    )
+
     private var updaterController: SPUStandardUpdaterController?
+    private let instanceLock = LauncherSingleInstanceLock()
+    private var openExistingInstanceObserver: NSObjectProtocol?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        guard instanceLock.acquire() else {
+            DistributedNotificationCenter.default().postNotificationName(
+                Self.openExistingInstanceNotification,
+                object: nil,
+                userInfo: nil,
+                deliverImmediately: true
+            )
+            NSApp.terminate(nil)
+            return
+        }
+
+        openExistingInstanceObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Self.openExistingInstanceNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                StartupWindowVisibility.shared.revealLauncherWindow()
+            }
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         LauncherPreferences.registerDefaults()
@@ -35,10 +65,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         ChildProcessRegistry.shared.terminateAll()
+        if let openExistingInstanceObserver {
+            DistributedNotificationCenter.default().removeObserver(openExistingInstanceObserver)
+        }
+        instanceLock.release()
     }
 
     @objc func checkForUpdates(_ sender: Any?) {
         updaterController?.checkForUpdates(sender)
+    }
+}
+
+private final class LauncherSingleInstanceLock {
+    private let lockURL: URL
+    private var descriptor: Int32 = -1
+
+    init(fileManager: FileManager = .default) {
+        let supportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first ?? fileManager.temporaryDirectory
+        lockURL = supportURL
+            .appendingPathComponent("Minecraft Bedrock Launcher", isDirectory: true)
+            .appendingPathComponent("launcher.lock", isDirectory: false)
+    }
+
+    func acquire(fileManager: FileManager = .default) -> Bool {
+        guard descriptor < 0 else {
+            return true
+        }
+
+        do {
+            try fileManager.createDirectory(
+                at: lockURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+        } catch {
+            return true
+        }
+
+        let lockDescriptor = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
+        guard lockDescriptor >= 0 else {
+            return true
+        }
+
+        guard flock(lockDescriptor, LOCK_EX | LOCK_NB) == 0 else {
+            let lockError = errno
+            close(lockDescriptor)
+            return lockError == EWOULDBLOCK ? false : true
+        }
+
+        descriptor = lockDescriptor
+        return true
+    }
+
+    func release() {
+        guard descriptor >= 0 else {
+            return
+        }
+        flock(descriptor, LOCK_UN)
+        close(descriptor)
+        descriptor = -1
+    }
+
+    deinit {
+        release()
     }
 }
 
@@ -66,6 +155,19 @@ final class StartupWindowVisibility {
     func reveal(_ window: NSWindow?) {
         shouldHideMainWindow = false
         guard let window else {
+            return
+        }
+        window.ignoresMouseEvents = false
+        window.alphaValue = 1
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func revealLauncherWindow() {
+        shouldHideMainWindow = false
+        let window = NSApp.windows.first(where: isLauncherWindow) ?? NSApp.windows.first
+        guard let window else {
+            NSApp.activate(ignoringOtherApps: true)
             return
         }
         window.ignoresMouseEvents = false

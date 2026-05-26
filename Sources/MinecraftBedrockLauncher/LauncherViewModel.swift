@@ -141,6 +141,7 @@ final class LauncherViewModel: ObservableObject {
         self.credentialStore = credentialStore
         self.registry = InstalledVersionRegistry(paths: resolvedPaths)
         self.processRunner = processRunner
+        try? preloadLocalStateForInitialLayout()
         preloadStoredCredentialForInitialLayout()
         startNetworkMonitor()
     }
@@ -873,6 +874,15 @@ final class LauncherViewModel: ObservableObject {
         let storedCredential = try credentialStore.loadCredential()
         credential = storedCredential
         return storedCredential
+    }
+
+    private func preloadLocalStateForInitialLayout() throws {
+        try paths.ensureDirectories()
+        try syncRuntimeClientPreferencesFromDisk()
+        installedVersions = try registry.load()
+        selectedVersion = installedVersions.first
+        refreshSelectedVersionCompatibility()
+        refreshInstalledRuntimeState()
     }
 
     private func preloadStoredCredentialForInitialLayout() {

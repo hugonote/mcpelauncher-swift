@@ -9,9 +9,7 @@ struct ContentView: View {
     @State private var isShowingVersionInfo = false
     @State private var isStartupComplete = false
     @State private var isTitleIconVisible = false
-    @State private var isOptionKeyPressed = false
     @State private var isPresentingRunningGameWarning = false
-    @State private var modifierFlagsMonitor: Any?
     @State private var window: NSWindow?
     @Environment(\.openSettings) private var openSettings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -76,11 +74,7 @@ struct ContentView: View {
                 presentRunningGameWarning()
             }
         }
-        .onAppear {
-            installModifierFlagsMonitor()
-        }
         .onDisappear {
-            removeModifierFlagsMonitor()
             DockProgressController.shared.clear()
         }
         .task(id: window != nil) {
@@ -444,8 +438,6 @@ struct ContentView: View {
                 primaryButtonLabel
                     .font(.body.weight(.semibold))
                     .frame(width: primaryButtonWidth)
-                    .animation(.easeInOut(duration: 0.09), value: shouldShowPlayLogPrimaryButton)
-                    .animation(.easeOut(duration: 0.12), value: primaryButtonTitle)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -461,37 +453,15 @@ struct ContentView: View {
     private var primaryButtonLabel: some View {
         if isPrimaryPlayButton {
             HStack(spacing: 6) {
-                playLogIcon
-                    .frame(width: shouldShowPlayLogPrimaryButton ? 24 : 16, height: 18)
-
-                HStack(spacing: 0) {
-                    Text("Play")
-                    if shouldShowPlayLogPrimaryButton {
-                        Text(" & Log")
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
-                }
-                .fixedSize(horizontal: true, vertical: false)
+                Image(systemName: "play.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 16, height: 18)
+                Text("Play")
             }
             .frame(maxWidth: .infinity)
-            .clipped()
         } else {
             Label(primaryButtonTitle, systemImage: primaryButtonIcon)
                 .contentTransition(.opacity)
-        }
-    }
-
-    private var playLogIcon: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image(systemName: "play.fill")
-                .font(.system(size: 14, weight: .semibold))
-                .offset(x: shouldShowPlayLogPrimaryButton ? -2 : 0)
-            if shouldShowPlayLogPrimaryButton {
-                Image(systemName: "doc.text")
-                    .font(.system(size: 7.5, weight: .bold))
-                    .offset(x: 4, y: 2)
-                    .transition(.scale(scale: 0.72).combined(with: .opacity))
-            }
         }
     }
 
@@ -499,7 +469,7 @@ struct ContentView: View {
         let isDisabled = model.isGooglePlayBusy || model.isRuntimeBusy || model.isLaunchingGame
 
         return Button {
-            Task { await model.playSelected(captureLog: shouldCapturePlayLog) }
+            Task { await model.playSelected(captureLog: false) }
         } label: {
             Image(systemName: "play.fill")
                 .font(.system(size: 12, weight: .semibold))
@@ -518,7 +488,7 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .frame(width: 30, height: 30)
         .fixedSize()
-        .help(shouldCapturePlayLog ? "Play installed version and write launch log" : "Play installed version")
+        .help("Play installed version")
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.45 : 1)
     }
@@ -718,7 +688,7 @@ struct ContentView: View {
         }
         if model.canUseSelectedVersion {
             if model.isRuntimeReady {
-                await model.playSelected(captureLog: shouldCapturePlayLog)
+                await model.playSelected(captureLog: false)
             } else {
                 model.startRuntimeInstall()
             }
@@ -743,7 +713,7 @@ struct ContentView: View {
         }
         if model.canUseSelectedVersion {
             if model.isRuntimeReady {
-                return shouldCapturePlayLog ? "Play & Log" : "Play"
+                return "Play"
             }
             return "Download Runtime"
         }
@@ -784,12 +754,8 @@ struct ContentView: View {
         return "arrow.down.circle"
     }
 
-    private var shouldShowPlayLogPrimaryButton: Bool {
-        primaryButtonTitle == "Play & Log"
-    }
-
     private var isPrimaryPlayButton: Bool {
-        primaryButtonTitle == "Play" || shouldShowPlayLogPrimaryButton
+        primaryButtonTitle == "Play"
     }
 
     private var primaryButtonWidth: CGFloat {
@@ -798,30 +764,6 @@ struct ContentView: View {
 
     private var compactButtonWidth: CGFloat {
         96
-    }
-
-    private var shouldCapturePlayLog: Bool {
-        isOptionKeyPressed || NSEvent.modifierFlags.contains(.option)
-    }
-
-    private func installModifierFlagsMonitor() {
-        isOptionKeyPressed = NSEvent.modifierFlags.contains(.option)
-        guard modifierFlagsMonitor == nil else {
-            return
-        }
-        modifierFlagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-            isOptionKeyPressed = event.modifierFlags.contains(.option)
-            return event
-        }
-    }
-
-    private func removeModifierFlagsMonitor() {
-        guard let modifierFlagsMonitor else {
-            return
-        }
-        NSEvent.removeMonitor(modifierFlagsMonitor)
-        self.modifierFlagsMonitor = nil
-        isOptionKeyPressed = false
     }
 
     private var isPrimaryButtonDisabled: Bool {

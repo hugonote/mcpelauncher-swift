@@ -230,6 +230,30 @@ struct MinecraftBedrockLauncherApp: App {
                     }
                 }
             }
+
+            CommandMenu("Game") {
+                Button {
+                    Task { await model.playSelected(captureLog: false) }
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                }
+                .disabled(!canPlayFromGameMenu)
+
+                Button {
+                    Task { await model.playSelected(captureLog: true) }
+                } label: {
+                    Label("Play & Log", systemImage: "doc.text")
+                }
+                .disabled(!canPlayFromGameMenu)
+
+                Divider()
+
+                Button {
+                    NSWorkspace.shared.open(model.dataFolderURL)
+                } label: {
+                    Label("Open Data Folder", systemImage: "folder")
+                }
+            }
         }
 
         Settings {
@@ -242,5 +266,13 @@ struct MinecraftBedrockLauncherApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+    }
+
+    private var canPlayFromGameMenu: Bool {
+        model.canUseSelectedVersion
+            && model.isRuntimeReady
+            && !model.isGooglePlayBusy
+            && !model.isRuntimeBusy
+            && !model.isLaunchingGame
     }
 }

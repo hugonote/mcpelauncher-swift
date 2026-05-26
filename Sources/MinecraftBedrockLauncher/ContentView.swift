@@ -441,6 +441,7 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
             .disabled(isPrimaryButtonDisabled)
 
             if shouldShowPlaySideButton {

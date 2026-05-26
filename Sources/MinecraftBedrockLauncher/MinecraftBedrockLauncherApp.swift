@@ -213,7 +213,6 @@ struct MinecraftBedrockLauncherApp: App {
                     maxHeight: 280
                 )
                 .fixedSize()
-                .animation(.easeInOut(duration: 0.2), value: model.preferredWindowWidth)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)

@@ -348,6 +348,7 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
         }
         .offset(y: -18)
     }

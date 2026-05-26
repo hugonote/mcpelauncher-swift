@@ -26,9 +26,26 @@ Minecraft: Bedrock Edition on macOS through the
 [`mcpelauncher`](https://github.com/minecraft-linux/mcpelauncher-manifest)
 runtime.
 
-Download the latest Apple Silicon build from
+macOS 14 or newer and Apple Silicon are required.
+
+## Installation
+
+### GitHub Releases
+
+Download the latest DMG from
 [GitHub Releases](https://github.com/hugonote/mcpelauncher-swift/releases/latest).
-macOS 14 or newer is required.
+
+### 🍺 Homebrew
+
+```sh
+brew tap hugonote/mcpelauncher-swift
+brew install --cask minecraft-bedrock-launcher
+```
+
+> [!WARNING]
+> Release builds are not notarized. If macOS blocks the app, open System
+> Settings, go to Privacy & Security, scroll down, and allow
+> `Minecraft Bedrock Launcher` from there. You only need to do this once.
 
 ## Features
 

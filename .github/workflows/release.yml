@@ -201,3 +201,72 @@ jobs:
               --title "$RELEASE_TAG" \
               --notes-file "$RELEASE_NOTES_OUTPUT"
           fi
+
+  homebrew-cask:
+    name: Update Homebrew tap
+    needs: macos-dmg
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate Homebrew tap token
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [[ -z "$HOMEBREW_TAP_TOKEN" ]]; then
+            echo "Missing required secret: HOMEBREW_TAP_TOKEN" >&2
+            exit 1
+          fi
+
+      - name: Check out Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: hugonote/homebrew-mcpelauncher-swift
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Resolve version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v$VERSION"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          fi
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "DMG_NAME=Minecraft.Bedrock.Launcher-$VERSION.dmg" >> "$GITHUB_ENV"
+
+      - name: Update cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DIGEST="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+            --jq ".assets[] | select(.name == \"${DMG_NAME}\") | .digest")"
+          if [[ "$DIGEST" != sha256:* ]]; then
+            echo "Could not find sha256 digest for ${DMG_NAME} in ${RELEASE_TAG}." >&2
+            exit 1
+          fi
+          SHA256="${DIGEST#sha256:}"
+
+          ruby - "${APP_VERSION}" "${SHA256}" <<'RUBY'
+          path = "homebrew-tap/Casks/minecraft-bedrock-launcher.rb"
+          version, sha256 = ARGV
+          text = File.read(path)
+          abort "version stanza not found" unless text.sub!(/version "[^"]+"/, %(version "#{version}"))
+          abort "sha256 stanza not found" unless text.sub!(/sha256 "[0-9a-f]{64}"/, %(sha256 "#{sha256}"))
+          File.write(path, text)
+          RUBY
+
+      - name: Commit cask update
+        working-directory: homebrew-tap
+        run: |
+          if git diff --quiet -- Casks/minecraft-bedrock-launcher.rb; then
+            echo "Homebrew cask is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/minecraft-bedrock-launcher.rb
+          git commit -m "minecraft-bedrock-launcher ${RELEASE_TAG}"
+          git push

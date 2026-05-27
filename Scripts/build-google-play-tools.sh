@@ -19,7 +19,10 @@ fi
 
 BUILD_DIR="${GOOGLE_PLAY_API_BUILD_DIR:-$PACKAGE_DIR/.build/google-play-api-build}"
 PATCHED_SOURCE_DIR="${GOOGLE_PLAY_API_PATCHED_SOURCE_DIR:-$PACKAGE_DIR/.build/google-play-api-patched}"
-PATCH_FILE="$PACKAGE_DIR/Scripts/patches/google-play-api-gplaydl-aggregate-progress.patch"
+PATCH_FILES=(
+  "$PACKAGE_DIR/Scripts/patches/google-play-api-gplaydl-aggregate-progress.patch"
+  "$PACKAGE_DIR/Scripts/patches/google-play-api-access-token-auth.patch"
+)
 CMAKE_GENERATOR="${CMAKE_GENERATOR:-Unix Makefiles}"
 CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
 
@@ -33,7 +36,9 @@ fi
 
 rm -rf "$PATCHED_SOURCE_DIR"
 ditto "$SOURCE_DIR" "$PATCHED_SOURCE_DIR"
-git -C "$PATCHED_SOURCE_DIR" apply "$PATCH_FILE"
+for PATCH_FILE in "${PATCH_FILES[@]}"; do
+  git -C "$PATCHED_SOURCE_DIR" apply "$PATCH_FILE"
+done
 SOURCE_DIR="$PATCHED_SOURCE_DIR"
 
 rm -rf "$BUILD_DIR"

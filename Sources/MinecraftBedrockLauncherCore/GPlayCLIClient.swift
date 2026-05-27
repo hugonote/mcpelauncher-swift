@@ -31,18 +31,17 @@ public struct GPlayCLIClient: GooglePlayDownloading, @unchecked Sendable {
             try fileManager.removeItem(at: configURL)
         }
         defer { try? fileManager.removeItem(at: configURL) }
-        let input = "2\n\(request.oauthToken)\nY\n".data(using: .utf8)
         _ = try runTool(
             command: "gplayver auth",
             executableURL: gplayverURL,
             arguments: [
-                "--interactive",
+                "--access-token-stdin",
                 "--device", deviceConfigURL.path,
                 "--save-auth",
                 "--accept-tos",
                 "--app", packageNameForAuth
             ],
-            input: input
+            input: "\(request.oauthToken)\n".data(using: .utf8)
         )
 
         let config = try readPlayDLConfig(at: configURL)
@@ -69,7 +68,8 @@ public struct GPlayCLIClient: GooglePlayDownloading, @unchecked Sendable {
                 deviceConfigURL: deviceConfigURL,
                 credential: credential,
                 tail: ["--app", packageName]
-            )
+            ),
+            input: authenticatedInput(credential)
         )
         return try parseLatestVersion(packageName: packageName, output: result.stdoutString + result.stderrString)
     }
@@ -101,6 +101,7 @@ public struct GPlayCLIClient: GooglePlayDownloading, @unchecked Sendable {
                     "--output", outputURL.path
                 ]
             ),
+            input: authenticatedInput(credential),
             progress: progress
         )
         let files = try downloadedAPKs(in: outputDirectory, baseName: baseName)
@@ -136,6 +137,7 @@ public struct GPlayCLIClient: GooglePlayDownloading, @unchecked Sendable {
                     "--output", outputURL.path
                 ]
             ),
+            input: authenticatedInput(credential),
             stopAfterFirstProgress: true,
             progress: { _ in }
         )
@@ -150,8 +152,12 @@ public struct GPlayCLIClient: GooglePlayDownloading, @unchecked Sendable {
             "--device", deviceConfigURL.path,
             "--accept-tos",
             "--email", credential.email,
-            "--token", credential.masterToken
+            "--token-stdin"
         ] + tail
+    }
+
+    private func authenticatedInput(_ credential: GoogleCredential) -> Data? {
+        "\(credential.masterToken)\n".data(using: .utf8)
     }
 
     private func prepareState(abi: String) throws -> URL {

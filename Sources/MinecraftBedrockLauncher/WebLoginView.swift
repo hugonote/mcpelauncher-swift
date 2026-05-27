@@ -57,7 +57,6 @@ struct WebLoginView: NSViewRepresentable {
           window.mm.log = function(value) {
             post({ type: "log", value: String(value || "") });
           };
-          var autoConsentClicked = false;
           function textFor(element) {
             if (!element) {
               return "";
@@ -73,46 +72,10 @@ struct WebLoginView: NSViewRepresentable {
             var text = textFor(element).replace(/\\s+/g, " ").trim();
             return text === "i agree" || text === "agree" || text.indexOf(" i agree ") !== -1;
           }
-          function findAgreeButton(root) {
-            var selectors = [
-              "button",
-              "[role='button']",
-              "input[type='button']",
-              "input[type='submit']",
-              "div[tabindex]",
-              "span"
-            ];
-            var candidates = [];
-            try {
-              candidates = Array.prototype.slice.call(root.querySelectorAll(selectors.join(",")));
-            } catch (error) {
-              return null;
-            }
-            for (var index = 0; index < candidates.length; index += 1) {
-              var candidate = candidates[index];
-              if (isAgreeElement(candidate)) {
-                return candidate.closest("button,[role='button'],input,div[tabindex]") || candidate;
-              }
-            }
-            return null;
-          }
-          function clickAgreeIfVisible() {
-            if (autoConsentClicked) {
-              return;
-            }
-            var button = findAgreeButton(document);
-            if (!button) {
-              return;
-            }
-            var rect = button.getBoundingClientRect();
-            if (rect.width <= 0 || rect.height <= 0) {
-              return;
-            }
-            autoConsentClicked = true;
-            post({ type: "consentAccepted" });
-            button.click();
-          }
           document.addEventListener("click", function(event) {
+            if (event.isTrusted === false) {
+              return;
+            }
             var element = event.target;
             for (var depth = 0; element && depth < 5; depth += 1, element = element.parentElement) {
               if (isAgreeElement(element)) {
@@ -121,15 +84,6 @@ struct WebLoginView: NSViewRepresentable {
               }
             }
           }, true);
-          setTimeout(clickAgreeIfVisible, 300);
-          setTimeout(clickAgreeIfVisible, 1000);
-          setTimeout(clickAgreeIfVisible, 2000);
-          if (window.MutationObserver) {
-            new MutationObserver(clickAgreeIfVisible).observe(document.documentElement || document, {
-              childList: true,
-              subtree: true
-            });
-          }
         })();
         """,
         injectionTime: .atDocumentStart,

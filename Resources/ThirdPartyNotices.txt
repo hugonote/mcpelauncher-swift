@@ -17,6 +17,16 @@ Bundled components:
   License: Apache License 2.0.
   Upstream: https://github.com/minecraft-linux/Google-Play-API
 
+- Protocol Buffers
+  Runtime library used by the Google Play helpers.
+  License: BSD-3-Clause.
+  Upstream: https://github.com/protocolbuffers/protobuf
+
+- Abseil C++ Libraries
+  Runtime libraries used by Protocol Buffers and the Google Play helpers.
+  License: Apache License 2.0.
+  Upstream: https://github.com/abseil/abseil-cpp
+
 Downloaded components:
 
 - mcpelauncher runtime

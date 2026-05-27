@@ -3,7 +3,7 @@ import XCTest
 @testable import MinecraftBedrockLauncherCore
 
 final class GPlayCLIClientTests: XCTestCase {
-    func testAuthRunsGPlayverInteractiveAndReadsSavedToken() throws {
+    func testAuthRunsGPlayverWithAccessTokenAndReadsSavedToken() throws {
         let temp = try TemporaryDirectory()
         let gplayverURL = temp.url.appendingPathComponent("gplayver")
         let gplaydlURL = temp.url.appendingPathComponent("gplaydl")
@@ -12,10 +12,12 @@ final class GPlayCLIClientTests: XCTestCase {
 
         let runner = MockProcessRunner { executableURL, arguments, input, currentDirectoryURL, _ in
             XCTAssertEqual(executableURL, gplayverURL)
-            XCTAssertTrue(arguments.contains("--interactive"))
+            XCTAssertTrue(arguments.contains("--access-token-stdin"))
+            XCTAssertFalse(arguments.contains("oauth-token"))
+            XCTAssertFalse(arguments.contains("--interactive"))
             XCTAssertTrue(arguments.contains("--save-auth"))
             XCTAssertTrue(arguments.contains("--accept-tos"))
-            XCTAssertEqual(String(data: input ?? Data(), encoding: .utf8), "2\noauth-token\nY\n")
+            XCTAssertEqual(String(data: input ?? Data(), encoding: .utf8), "oauth-token\n")
             let configURL = try XCTUnwrap(currentDirectoryURL)
                 .appendingPathComponent("playdl.conf", isDirectory: false)
             try "user_email = user@example.com\nuser_token = master-token\n"
@@ -122,13 +124,13 @@ final class GPlayCLIClientTests: XCTestCase {
 
         let runner = MockProcessRunner { executableURL, arguments, input, currentDirectoryURL, _ in
             XCTAssertEqual(executableURL, gplayverURL)
-            XCTAssertNil(input)
+            XCTAssertEqual(String(data: input ?? Data(), encoding: .utf8), "master-token\n")
             XCTAssertEqual(currentDirectoryURL, stateURL)
             XCTAssertTrue(arguments.contains("--device"))
             XCTAssertTrue(arguments.contains("--email"))
             XCTAssertTrue(arguments.contains("user@example.com"))
-            XCTAssertTrue(arguments.contains("--token"))
-            XCTAssertTrue(arguments.contains("master-token"))
+            XCTAssertTrue(arguments.contains("--token-stdin"))
+            XCTAssertFalse(arguments.contains("master-token"))
             XCTAssertTrue(arguments.contains("--app"))
             XCTAssertTrue(arguments.contains("com.mojang.minecraftpe"))
             let output = """

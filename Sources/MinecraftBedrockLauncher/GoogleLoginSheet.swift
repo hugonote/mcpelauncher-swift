@@ -9,6 +9,7 @@ struct GoogleLoginSheet: View {
     @State private var consentAccepted = false
     @State private var setupFinished = false
     @State private var isCompleting = false
+    @State private var completionFailed = false
     @State private var settleTask: Task<Void, Never>?
     @State private var completionTask: Task<Void, Never>?
 
@@ -31,15 +32,19 @@ struct GoogleLoginSheet: View {
             WebLoginView { token, userID in
                 capturedOAuthToken = token
                 capturedUserID = userID
+                completionFailed = false
                 completeIfReady()
             } onAccountIdentifier: { identifier in
                 accountIdentifier = identifier
+                completionFailed = false
                 completeIfReady()
             } onConsentAccepted: {
                 consentAccepted = true
+                completionFailed = false
                 completeAfterGoogleSettles()
             } onSetupFinished: {
                 setupFinished = true
+                completionFailed = false
                 completeAfterGoogleSettles()
             }
             .frame(minWidth: 520, minHeight: 560)
@@ -51,6 +56,11 @@ struct GoogleLoginSheet: View {
                 if isCompleting {
                     ProgressView()
                         .controlSize(.small)
+                } else if completionFailed {
+                    Button("Retry") {
+                        completionFailed = false
+                        completeAfterGoogleSettles()
+                    }
                 }
             }
         }
@@ -64,6 +74,9 @@ struct GoogleLoginSheet: View {
         if isCompleting {
             return "OAuth token captured. Completing sign in"
         }
+        if completionFailed {
+            return model.errorText ?? "Could not complete Google sign in."
+        }
         if capturedOAuthToken.isEmpty {
             return "Finish the Google prompt. The launcher will close this window automatically."
         }
@@ -73,7 +86,7 @@ struct GoogleLoginSheet: View {
         if consentAccepted || setupFinished {
             return "Finishing Google sign in"
         }
-        return "Google consent is ready. Finishing automatically"
+        return "Click I agree in the Google prompt."
     }
 
     private func completeAfterGoogleSettles() {
@@ -89,6 +102,7 @@ struct GoogleLoginSheet: View {
 
     private func completeIfReady() {
         guard !isCompleting,
+              !completionFailed,
               !capturedOAuthToken.isEmpty,
               !accountIdentifier.isEmpty,
               consentAccepted || setupFinished else {
@@ -110,6 +124,8 @@ struct GoogleLoginSheet: View {
             isCompleting = false
             if succeeded {
                 dismiss()
+            } else {
+                completionFailed = true
             }
         }
     }
@@ -120,5 +136,6 @@ struct GoogleLoginSheet: View {
         completionTask?.cancel()
         completionTask = nil
         isCompleting = false
+        completionFailed = false
     }
 }

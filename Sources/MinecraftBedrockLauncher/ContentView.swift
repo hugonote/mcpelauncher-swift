@@ -761,7 +761,14 @@ struct ContentView: View {
     }
 
     private var primaryButtonWidth: CGFloat {
-        primaryButtonTitle == "Download Runtime" ? 172 : 96
+        switch primaryButtonTitle {
+        case "Download Runtime":
+            return 172
+        case "Switch Account":
+            return 172
+        default:
+            return 96
+        }
     }
 
     private var compactButtonWidth: CGFloat {

@@ -3,7 +3,7 @@ import MinecraftBedrockLauncherCore
 
 enum LauncherIssue: Equatable {
     case networkUnavailable
-    case googlePlayBadToken
+    case googlePlayCredentialRequiresSignIn
     case connectionInterrupted
     case minecraftNotOwned
     case downloadStalled
@@ -39,15 +39,15 @@ enum LauncherIssue: Equatable {
     }
 
     var isNetworkUnavailable: Bool {
-        self == .networkUnavailable || self == .googlePlayBadToken
+        self == .networkUnavailable
     }
 
     var centerText: String? {
         switch self {
         case .networkUnavailable:
             return "No internet connection"
-        case .googlePlayBadToken:
-            return "No internet connection"
+        case .googlePlayCredentialRequiresSignIn:
+            return "Sign in again"
         case .connectionInterrupted:
             return "Connection interrupted"
         case .minecraftNotOwned:
@@ -69,8 +69,10 @@ enum LauncherIssue: Equatable {
 
     var shortText: String? {
         switch self {
-        case .networkUnavailable, .googlePlayBadToken:
+        case .networkUnavailable:
             return "Offline"
+        case .googlePlayCredentialRequiresSignIn:
+            return "Sign in required"
         case .connectionInterrupted:
             return "Connection interrupted"
         case .minecraftNotOwned:
@@ -105,16 +107,10 @@ enum LauncherIssue: Equatable {
 
     private static func issue(for error: LauncherError) -> LauncherIssue {
         switch error {
-        case .googlePlayToolNotFound:
-            return .bundledHelperMissing
-        case .googlePlayToolFailed(let command, let status, let output):
-            if (command.localizedCaseInsensitiveContains("gplayver")
-                || command.localizedCaseInsensitiveContains("gplaydl")),
-               status == 1,
-               output.localizedCaseInsensitiveContains("bad token") {
-                return .googlePlayBadToken
-            }
-            return issue(forMessage: output)
+        case .googlePlayCredentialRequiresSignIn:
+            return .googlePlayCredentialRequiresSignIn
+        case .googlePlayFailed(let message):
+            return issue(forMessage: message)
         case .minecraftNotOwned:
             return .minecraftNotOwned
         case .runtimeChecksumMismatch:
@@ -154,9 +150,6 @@ enum LauncherIssue: Equatable {
 
     private static func isBundledHelperMissing(_ message: String) -> Bool {
         let helperNames = [
-            "Google Play tool",
-            "gplayver",
-            "gplaydl",
             "mcpelauncher-ui-qt",
             "mcpelauncher-webview"
         ]

@@ -215,6 +215,7 @@ final class RuntimeManagerTests: XCTestCase {
             var environment: [String: String] = [:]
             var credentialFromFile: GoogleCredential?
             var credentialFilePath: String?
+            var credentialFileJSON: String?
         }
         let capture = CaptureBox()
         let runner = MockProcessRunner { _, arguments, _, _, environment in
@@ -223,6 +224,7 @@ final class RuntimeManagerTests: XCTestCase {
             if let path = environment[GoogleCredentialFileTransfer.environmentKey], !path.isEmpty {
                 capture.credentialFilePath = path
                 let data = try Data(contentsOf: URL(fileURLWithPath: path))
+                capture.credentialFileJSON = String(data: data, encoding: .utf8)
                 capture.credentialFromFile = try JSONDecoder().decode(GoogleCredential.self, from: data)
             }
             return ProcessResult(status: 0, stdout: Data(), stderr: Data())
@@ -236,7 +238,16 @@ final class RuntimeManagerTests: XCTestCase {
             dataPath: dataURL,
             cachePath: cacheURL,
             credentialsHelperDirectory: helpersURL,
-            googleCredential: GoogleCredential(email: "u@example.com", masterToken: "master")
+            googleCredential: GoogleCredential(
+                email: "u@example.com",
+                masterToken: "master",
+                userID: "user-id",
+                finskyCredential: try FinskyCredentialFixture.credential(
+                    email: "u@example.com",
+                    userID: "user-id",
+                    masterToken: "master"
+                )
+            )
         )
 
         XCTAssertTrue(capture.arguments.contains("-fes"))
@@ -251,6 +262,10 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertEqual(capture.environment["MCPELAUNCHER_GOOGLE_TOKEN"], "")
         XCTAssertEqual(capture.credentialFromFile?.email, "u@example.com")
         XCTAssertEqual(capture.credentialFromFile?.masterToken, "master")
+        XCTAssertNil(capture.credentialFromFile?.userID)
+        XCTAssertFalse(capture.credentialFileJSON?.contains("userID") ?? true)
+        XCTAssertFalse(capture.credentialFileJSON?.contains("finskyCredential") ?? true)
+        XCTAssertFalse(capture.credentialFileJSON?.contains("androidmarket-cookie") ?? true)
         XCTAssertNotNil(capture.credentialFilePath)
         XCTAssertFalse(capture.credentialFilePath?.contains("master") ?? true)
         if let credentialFilePath = capture.credentialFilePath {

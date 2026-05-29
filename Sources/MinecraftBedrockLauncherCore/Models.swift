@@ -1,4 +1,5 @@
 import Foundation
+import FinskyKit
 
 public struct InstalledVersion: Codable, Equatable, Hashable, Identifiable, Sendable {
     public var id: String { versionName }
@@ -176,11 +177,18 @@ public struct GoogleCredential: Codable, Equatable, Sendable {
     public var email: String
     public var masterToken: String
     public var userID: String?
+    public var finskyCredential: FinskyCredential?
 
-    public init(email: String, masterToken: String, userID: String? = nil) {
+    public init(
+        email: String,
+        masterToken: String,
+        userID: String? = nil,
+        finskyCredential: FinskyCredential? = nil
+    ) {
         self.email = email
         self.masterToken = masterToken
         self.userID = userID
+        self.finskyCredential = finskyCredential
     }
 }
 

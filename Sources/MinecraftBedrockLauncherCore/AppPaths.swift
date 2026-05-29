@@ -41,10 +41,6 @@ public struct AppPaths: Equatable, Sendable {
         compatibilityPatchesURL.appendingPathComponent("mcpelauncher-updates.json", isDirectory: false)
     }
 
-    public var helperStateURL: URL {
-        baseURL.appendingPathComponent("GooglePlay", isDirectory: true)
-    }
-
     public var minecraftDataURL: URL {
         baseURL.appendingPathComponent("MinecraftData", isDirectory: true)
     }
@@ -62,7 +58,7 @@ public struct AppPaths: Equatable, Sendable {
     }
 
     public func ensureDirectories(fileManager: FileManager = .default) throws {
-        for url in [baseURL, downloadsURL, versionsURL, runtimeURL, compatibilityPatchesURL, helperStateURL, minecraftDataURL, minecraftCacheURL, logsURL] {
+        for url in [baseURL, downloadsURL, versionsURL, runtimeURL, compatibilityPatchesURL, minecraftDataURL, minecraftCacheURL, logsURL] {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
@@ -70,10 +66,8 @@ public struct AppPaths: Equatable, Sendable {
 
 public enum LauncherError: Error, LocalizedError, Equatable {
     case missingApplicationSupportDirectory
-    case googlePlayToolNotFound(URL)
-    case googlePlayToolFailed(command: String, status: Int32, output: String)
-    case malformedGooglePlayToolOutput(command: String, output: String)
-    case googlePlayCredentialNotSaved(URL)
+    case googlePlayFailed(String)
+    case googlePlayCredentialRequiresSignIn
     case minecraftNotOwned(account: String?)
     case missingCredential
     case invalidAPK(URL, reason: String)
@@ -91,18 +85,10 @@ public enum LauncherError: Error, LocalizedError, Equatable {
         switch self {
         case .missingApplicationSupportDirectory:
             return "Could not locate the user Application Support directory."
-        case .googlePlayToolNotFound(let url):
-            return "Google Play tool was not found at \(url.path). Package gplayver and gplaydl, or set GPLAYVER_PATH and GPLAYDL_PATH."
-        case .googlePlayToolFailed(let command, let status, let output):
-            let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmedOutput.isEmpty {
-                return "\(command) failed with status \(status)."
-            }
-            return "\(command) failed with status \(status): \(trimmedOutput)"
-        case .malformedGooglePlayToolOutput(let command, let output):
-            return "\(command) returned output that could not be parsed: \(output)"
-        case .googlePlayCredentialNotSaved(let url):
-            return "Google Play sign in completed, but no saved Play token was found at \(url.path)."
+        case .googlePlayFailed(let message):
+            return "Google Play request failed: \(message)"
+        case .googlePlayCredentialRequiresSignIn:
+            return "Google Play credentials need to be refreshed. Sign in again."
         case .minecraftNotOwned:
             return "Minecraft is not purchased on this Google Play account."
         case .missingCredential:

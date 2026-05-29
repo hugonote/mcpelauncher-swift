@@ -30,11 +30,15 @@ let package = Package(
         )
     ],
     dependencies: [
+        .package(url: "https://github.com/hugonote/FinskyKit.git", branch: "main"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.1")
     ],
     targets: [
         .target(
-            name: "MinecraftBedrockLauncherCore"
+            name: "MinecraftBedrockLauncherCore",
+            dependencies: [
+                .product(name: "FinskyKit", package: "FinskyKit")
+            ]
         ),
         .executableTarget(
             name: "MinecraftBedrockLauncher",

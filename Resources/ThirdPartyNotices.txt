@@ -12,20 +12,15 @@ Bundled components:
   License: MIT-style license with bundled third-party notices.
   Upstream: https://github.com/sparkle-project/Sparkle
 
-- Google-Play-API tools (gplayver, gplaydl)
-  Google Play version lookup and APK download helpers.
-  License: Apache License 2.0.
-  Upstream: https://github.com/minecraft-linux/Google-Play-API
+- FinskyKit
+  Swift Google Play/Finsky client used for version lookup and APK download.
+  License: MIT.
+  Upstream: https://github.com/hugonote/FinskyKit
 
-- Protocol Buffers
-  Runtime library used by the Google Play helpers.
+- SwiftProtobuf
+  Runtime library used by FinskyKit protobuf messages.
   License: BSD-3-Clause.
-  Upstream: https://github.com/protocolbuffers/protobuf
-
-- Abseil C++ Libraries
-  Runtime libraries used by Protocol Buffers and the Google Play helpers.
-  License: Apache License 2.0.
-  Upstream: https://github.com/abseil/abseil-cpp
+  Upstream: https://github.com/apple/swift-protobuf
 
 Downloaded components:
 

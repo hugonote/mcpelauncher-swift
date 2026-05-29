@@ -48,9 +48,9 @@ public final class KeychainCredentialStore: CredentialStore, @unchecked Sendable
         var query = baseQuery()
         query[kSecValueData as String] = data
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        query[kSecAttrLabel as String] = "Google Play token"
-        query[kSecAttrDescription as String] = "Google Play token for Minecraft Bedrock Launcher"
-        query[kSecAttrComment as String] = "Used to check Minecraft Bedrock updates and download Minecraft from Google Play."
+        query[kSecAttrLabel as String] = "Google Play credential"
+        query[kSecAttrDescription as String] = "Google Play credential for Minecraft Bedrock Launcher"
+        query[kSecAttrComment as String] = "Stores Google Play auth and Finsky device state used to check and download Minecraft."
         let addStatus = SecItemAdd(query as CFDictionary, nil)
         if addStatus == errSecSuccess {
             return

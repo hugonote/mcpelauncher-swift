@@ -217,7 +217,8 @@ struct ContentView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .lineLimit(usesMultilineSubtitle ? 2 : 1)
+                .lineLimit(subtitleLineLimit)
+                .help(versionText)
 
             if shouldShowVersionInfoButton {
                 Button {
@@ -675,6 +676,11 @@ struct ContentView: View {
     }
 
     private func primaryAction() async {
+        if needsCredentialRefresh {
+            model.signOut()
+            model.showingLogin = true
+            return
+        }
         if isPurchaseRequired {
             model.signOut()
             model.showingLogin = true
@@ -704,6 +710,9 @@ struct ContentView: View {
     }
 
     private var primaryButtonTitle: String {
+        if needsCredentialRefresh {
+            return "Sign in"
+        }
         if isPurchaseRequired {
             return "Switch Account"
         }
@@ -732,6 +741,9 @@ struct ContentView: View {
     }
 
     private var primaryButtonIcon: String {
+        if needsCredentialRefresh {
+            return "person.crop.circle.badge.plus"
+        }
         if isPurchaseRequired {
             return "person.crop.circle.badge.plus"
         }
@@ -864,7 +876,17 @@ struct ContentView: View {
     }
 
     private var usesMultilineSubtitle: Bool {
-        shouldShowRuntimeTitle || isPurchaseRequired
+        shouldShowRuntimeTitle || isPurchaseRequired || isShowingErrorSubtitle
+    }
+
+    private var subtitleLineLimit: Int {
+        isShowingErrorSubtitle ? 3 : (usesMultilineSubtitle ? 2 : 1)
+    }
+
+    private var isShowingErrorSubtitle: Bool {
+        model.downloadState.phase == .failed
+            || model.runtimeState.phase == .failed
+            || model.errorText != nil
     }
 
     private var shouldShowVersionInfoButton: Bool {
@@ -898,6 +920,14 @@ struct ContentView: View {
             return false
         }
         return model.activeIssue == .minecraftNotOwned
+    }
+
+    private var needsCredentialRefresh: Bool {
+        guard model.credential != nil,
+              model.downloadState.phase == .failed else {
+            return false
+        }
+        return model.activeIssue == .googlePlayCredentialRequiresSignIn
     }
 
     private var shouldFocusRuntime: Bool {

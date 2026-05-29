@@ -8,6 +8,21 @@ private struct PendingGameLaunch {
     var captureLog: Bool
 }
 
+private struct MinecraftVersionResolution {
+    var reportedLatest: LatestVersion
+    var downloadable: LatestVersion
+    var usedSupportedFallback: Bool
+}
+
+private struct SignOutLegacyGooglePlayStateCleanupError: LocalizedError {
+    var url: URL
+    var underlyingError: Error
+
+    var errorDescription: String? {
+        "Signed out, but legacy Google Play state could not be removed at \(url.path): \(underlyingError.localizedDescription)"
+    }
+}
+
 @MainActor
 final class LauncherViewModel: ObservableObject {
     @Published var credential: GoogleCredential?
@@ -119,6 +134,7 @@ final class LauncherViewModel: ObservableObject {
     private var downloadStallTask: Task<Void, Never>?
     private var activeDownloadTask: Task<Void, Never>?
     private var activeDownloadID: UUID?
+    private var activeDownloadOutputURL: URL?
     private var pendingRunningGameLaunch: PendingGameLaunch?
 
     init(
@@ -181,6 +197,8 @@ final class LauncherViewModel: ObservableObject {
     func load(startsAutomaticRuntimeUpdate: Bool = true) async {
         do {
             try paths.ensureDirectories()
+            signOutLegacyCredentialIfNeeded()
+            try paths.removeLegacyGooglePlayState()
             try syncRuntimeClientPreferencesFromDisk()
             installedVersions = try registry.load()
             selectedVersion = installedVersions.first
@@ -239,10 +257,7 @@ final class LauncherViewModel: ObservableObject {
     func signOut() {
         do {
             try credentialStore.clearCredential()
-            if FileManager.default.fileExists(atPath: paths.helperStateURL.path) {
-                try FileManager.default.removeItem(at: paths.helperStateURL)
-            }
-            try FileManager.default.createDirectory(at: paths.helperStateURL, withIntermediateDirectories: true)
+            let legacyStateCleanupSucceeded = clearLegacyGooglePlayStateForSignOut()
             credential = nil
             didTryLoadingStoredCredential = false
             credentialAccessDenied = false
@@ -250,8 +265,13 @@ final class LauncherViewModel: ObservableObject {
             googlePlayLatestVersion = nil
             downloadState = DownloadState()
             errorText = nil
-            updateWarningText = nil
-            statusText = "Signed out."
+            if legacyStateCleanupSucceeded {
+                updateWarningText = nil
+                statusText = "Signed out."
+            } else {
+                updateWarningText = "Signed out, but old Google Play state could not be fully removed. Sign in will recreate it."
+                statusText = "Signed out with legacy Google Play cleanup warning."
+            }
         } catch {
             show(error)
         }
@@ -390,10 +410,9 @@ final class LauncherViewModel: ObservableObject {
                 throw LauncherError.missingCredential
             }
             downloadState = DownloadState(phase: .fetchingLatest)
-            let downloadCoordinator = makeMinecraftDownloadCoordinator()
-            let latest = try await downloadCoordinator.latestVersion(credential: credential)
-            googlePlayLatestVersion = latest
-            let downloadable = try await downloadableVersion(for: latest)
+            let resolution = try await resolveDownloadableVersion(credential: credential)
+            let latest = resolution.reportedLatest
+            let downloadable = resolution.downloadable
             latestVersion = downloadable
             if selectedVersion == nil {
                 downloadState = DownloadState(
@@ -408,6 +427,8 @@ final class LauncherViewModel: ObservableObject {
             if let installed = installedVersions.first(where: { $0.versionCode == downloadable.versionCode }) {
                 selectedVersion = installed
                 statusText = "\(downloadable.versionName) is already installed."
+            } else if resolution.usedSupportedFallback {
+                statusText = "Using latest macOS-supported Minecraft version: \(downloadable.versionName)."
             } else if downloadable.versionCode != latest.versionCode {
                 refreshSelectedVersionCompatibility()
                 statusText = "Google Play has \(latest.versionName), but macOS patches currently support \(downloadable.versionName)."
@@ -424,6 +445,49 @@ final class LauncherViewModel: ObservableObject {
                 show(error)
             }
         }
+    }
+
+    private func resolveDownloadableVersion(credential: GoogleCredential) async throws -> MinecraftVersionResolution {
+        let downloadCoordinator = makeMinecraftDownloadCoordinator()
+        let latest: LatestVersion
+        let usedSupportedFallback: Bool
+        do {
+            latest = try await downloadCoordinator.latestVersion(credential: credential)
+            googlePlayLatestVersion = latest
+            usedSupportedFallback = false
+        } catch {
+            latest = try await supportedVersionFallback(after: error)
+            googlePlayLatestVersion = nil
+            usedSupportedFallback = true
+            updateWarningText = "Latest Google Play version unavailable"
+        }
+        let downloadable = try await downloadableVersion(for: latest)
+        return MinecraftVersionResolution(
+            reportedLatest: latest,
+            downloadable: downloadable,
+            usedSupportedFallback: usedSupportedFallback
+        )
+    }
+
+    private func supportedVersionFallback(after error: Error) async throws -> LatestVersion {
+        guard canUseSupportedVersionFallback(after: error) else {
+            throw error
+        }
+        let metadata = try await ensureCompatibilityPatch()
+        newestSupportedVersion = metadata.newestSupportedVersion
+        guard let supported = metadata.newestSupportedVersion else {
+            throw error
+        }
+        return LatestVersion(
+            packageName: MinecraftDownloadCoordinator.packageName,
+            versionName: supported.versionName,
+            versionCode: supported.versionCode,
+            isBeta: false
+        )
+    }
+
+    private func canUseSupportedVersionFallback(after error: Error) -> Bool {
+        error.localizedDescription.localizedCaseInsensitiveContains("DF-DFERH-01")
     }
 
     func refreshVersionInfo() async {
@@ -505,9 +569,11 @@ final class LauncherViewModel: ObservableObject {
 
     private func cancelActiveDownloadWork() {
         let shouldTerminateChildren = activeDownloadTask != nil || activeDownloadID != nil || isGooglePlayBusy
+        let outputURL = activeDownloadOutputURL
         activeDownloadTask?.cancel()
         activeDownloadTask = nil
         activeDownloadID = nil
+        activeDownloadOutputURL = nil
         if shouldTerminateChildren {
             ChildProcessRegistry.shared.terminateAll()
         }
@@ -515,6 +581,31 @@ final class LauncherViewModel: ObservableObject {
         downloadStallTask = nil
         lastDownloadProgressEventDate = nil
         lastDownloadProgressBytes = 0
+        URLCache.shared.removeAllCachedResponses()
+        scheduleDownloadOutputCleanup(outputURL)
+    }
+
+    private func scheduleDownloadOutputCleanup(_ outputURL: URL?) {
+        guard let outputURL else {
+            return
+        }
+
+        Task.detached(priority: .utility) {
+            let delays: [UInt64] = [0, 250_000_000, 1_000_000_000, 2_000_000_000]
+            for delay in delays {
+                if delay > 0 {
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+                do {
+                    if FileManager.default.fileExists(atPath: outputURL.path) {
+                        try FileManager.default.removeItem(at: outputURL)
+                    }
+                    return
+                } catch {
+                    continue
+                }
+            }
+        }
     }
 
     func cancelRuntimeDownload() {
@@ -550,19 +641,17 @@ final class LauncherViewModel: ObservableObject {
             guard let credential = try loadStoredCredentialIfNeeded() else {
                 throw LauncherError.missingCredential
             }
-            var latest = latestVersion
-            if latest == nil {
+            let downloadable: LatestVersion
+            if let knownVersion = latestVersion {
+                downloadable = try await downloadableVersion(for: knownVersion)
+            } else {
                 downloadState = DownloadState(phase: .fetchingLatest)
-                let downloadCoordinator = makeMinecraftDownloadCoordinator()
-                let googleLatest = try await downloadCoordinator.latestVersion(credential: credential)
-                googlePlayLatestVersion = googleLatest
-                latest = try await downloadableVersion(for: googleLatest)
-                latestVersion = latest
+                let resolution = try await resolveDownloadableVersion(credential: credential)
+                downloadable = resolution.downloadable
+                if resolution.usedSupportedFallback {
+                    statusText = "Using latest macOS-supported Minecraft version: \(downloadable.versionName)."
+                }
             }
-            guard let latest else {
-                return
-            }
-            let downloadable = try await downloadableVersion(for: latest)
             latestVersion = downloadable
 
             downloadState = DownloadState(
@@ -576,6 +665,7 @@ final class LauncherViewModel: ObservableObject {
             lastDownloadProgressBytes = 0
             startDownloadStallWatch(versionName: downloadable.versionName)
             let outputURL = paths.downloadsURL.appendingPathComponent(String(downloadable.versionCode), isDirectory: true)
+            activeDownloadOutputURL = outputURL
             let downloadCoordinator = makeMinecraftDownloadCoordinator()
             let downloadProgress: @Sendable (DownloadProgress) -> Void = { [weak self] progress in
                 Task { @MainActor in
@@ -649,6 +739,7 @@ final class LauncherViewModel: ObservableObject {
             selectedVersion = installed
             refreshSelectedVersionCompatibility()
             activeDownloadID = nil
+            activeDownloadOutputURL = nil
             downloadState = DownloadState(versionName: downloadable.versionName, progress: 1, phase: .installed)
             lastDownloadProgressEventDate = nil
             lastDownloadProgressBytes = 0
@@ -659,7 +750,9 @@ final class LauncherViewModel: ObservableObject {
             guard activeDownloadID == downloadID else {
                 return
             }
+            let outputURL = activeDownloadOutputURL
             activeDownloadID = nil
+            activeDownloadOutputURL = nil
             downloadStallTask?.cancel()
             downloadStallTask = nil
             lastDownloadProgressEventDate = nil
@@ -668,11 +761,13 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             updateWarningText = nil
             statusText = "Download canceled."
+            scheduleDownloadOutputCleanup(outputURL)
         } catch {
             guard activeDownloadID == downloadID else {
                 return
             }
             activeDownloadID = nil
+            activeDownloadOutputURL = nil
             downloadStallTask?.cancel()
             downloadStallTask = nil
             lastDownloadProgressEventDate = nil
@@ -910,12 +1005,31 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func makeGooglePlayClient() -> any GooglePlayDownloading {
-        GPlayCLIClient(
-            gplayverURL: gplayverURL(),
-            gplaydlURL: gplaydlURL(),
-            stateDirectoryURL: paths.helperStateURL,
-            processRunner: processRunner
-        )
+        FinskyGooglePlayClient()
+    }
+
+    private func signOutLegacyCredentialIfNeeded() {
+        guard credential?.finskyCredential == nil, credential != nil else {
+            return
+        }
+        try? credentialStore.clearCredential()
+        credential = nil
+        didTryLoadingStoredCredential = true
+    }
+
+    private func clearLegacyGooglePlayStateForSignOut() -> Bool {
+        do {
+            try paths.removeLegacyGooglePlayState()
+            return true
+        } catch {
+            let cleanupError = SignOutLegacyGooglePlayStateCleanupError(
+                url: paths.legacyGooglePlayStateURL,
+                underlyingError: error
+            )
+            NSLog("%@", cleanupError.localizedDescription)
+            writeLastErrorLog(cleanupError)
+            return false
+        }
     }
 
     private func makeMinecraftDownloadCoordinator() -> MinecraftDownloadCoordinator {
@@ -923,20 +1037,6 @@ final class LauncherViewModel: ObservableObject {
             googlePlay: makeGooglePlayClient(),
             processRunner: processRunner
         )
-    }
-
-    private func gplayverURL() -> URL {
-        if let override = ProcessInfo.processInfo.environment["GPLAYVER_PATH"], !override.isEmpty {
-            return URL(fileURLWithPath: override)
-        }
-        return bundledHelperURL(named: "gplayver")
-    }
-
-    private func gplaydlURL() -> URL {
-        if let override = ProcessInfo.processInfo.environment["GPLAYDL_PATH"], !override.isEmpty {
-            return URL(fileURLWithPath: override)
-        }
-        return bundledHelperURL(named: "gplaydl")
     }
 
     private func bundledHelperURL(named name: String) -> URL {
@@ -1504,12 +1604,33 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func show(_ error: Error) {
+        writeLastErrorLog(error)
         let issue = LauncherIssue(error: error)
         reduceError(.present(
             error: error,
             blocksNetworkUnavailable: shouldShowBlockingNetworkUnavailable(for: issue)
         ))
         statusText = error.localizedDescription
+    }
+
+    private func writeLastErrorLog(_ error: Error) {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let content = """
+        \(stamp)
+        \(type(of: error))
+        \(error.localizedDescription)
+
+        """
+        do {
+            try FileManager.default.createDirectory(at: paths.logsURL, withIntermediateDirectories: true)
+            // Single-slot postmortem; historical launch output uses timestamped launch logs.
+            try Data(content.utf8).write(
+                to: paths.logsURL.appendingPathComponent("last-error.log", isDirectory: false),
+                options: [.atomic]
+            )
+        } catch {
+            // Best-effort diagnostic only; do not mask the original user-facing error.
+        }
     }
 
     private func shouldShowBlockingNetworkUnavailable(for issue: LauncherIssue) -> Bool {

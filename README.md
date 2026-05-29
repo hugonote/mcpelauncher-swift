@@ -52,7 +52,7 @@ brew install --cask minecraft-bedrock-launcher
 - Native SwiftUI launcher window for macOS.
 - Google Play sign-in through WebKit.
 - Store Google Play credentials in the macOS Keychain.
-- Version lookup and APK/split APK download through bundled Google Play tools.
+- Version lookup and APK/split APK download through native Swift Google Play/Finsky code.
 - Runtime download/update and compatibility patch setup.
 
 The launcher code is MIT licensed. Upstream components keep their own licenses.
@@ -65,7 +65,6 @@ Requirements:
 - Apple Silicon Mac for release builds
 - Swift 6 toolchain
 - Xcode with `actool` for app icon compilation
-- CMake when building bundled Google Play helpers
 
 Run tests:
 
@@ -86,14 +85,7 @@ Scripts/build-dmg.sh
 ```
 
 The bundle script builds the launcher, helper executables, Sparkle framework,
-app resources, and bundled Google Play helpers. To use prebuilt `gplayver` and
-`gplaydl` helpers instead:
-
-```sh
-GPLAYVER_PATH=/path/to/gplayver \
-GPLAYDL_PATH=/path/to/gplaydl \
-Scripts/build-app-bundle.sh
-```
+and app resources.
 
 If you want to build the Swift products manually:
 
@@ -115,7 +107,7 @@ Useful release-time variables:
 
 - Runtime: [`minecraft-linux/mcpelauncher-manifest`](https://github.com/minecraft-linux/mcpelauncher-manifest), GPL-3.0
 - Compatibility patches: [`minecraft-linux/mcpelauncher-moddb`](https://github.com/minecraft-linux/mcpelauncher-moddb)
-- Google Play helpers: [`minecraft-linux/Google-Play-API`](https://github.com/minecraft-linux/Google-Play-API), Apache-2.0
+- Google Play/Finsky client: [`FinskyKit`](https://github.com/hugonote/FinskyKit), MIT
 - Updates: [`Sparkle`](https://github.com/sparkle-project/Sparkle), MIT-style license
 
 Minecraft Bedrock Launcher is not affiliated with Mojang, Microsoft, Google, or

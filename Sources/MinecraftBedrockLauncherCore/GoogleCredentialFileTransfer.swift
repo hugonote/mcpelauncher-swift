@@ -16,7 +16,11 @@ public enum GoogleCredentialFileTransfer {
         )
 
         let fileURL = directoryURL.appendingPathComponent("credential.json", isDirectory: false)
-        try JSONEncoder().encode(credential).write(to: fileURL, options: .atomic)
+        let runtimeCredential = GooglePlayCredentialInput(
+            email: credential.email,
+            masterToken: credential.masterToken
+        )
+        try JSONEncoder().encode(runtimeCredential).write(to: fileURL, options: .atomic)
         try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: fileURL.path)
         return fileURL
     }
@@ -34,7 +38,8 @@ public enum GoogleCredentialFileTransfer {
             try? fileManager.removeItem(at: fileURL.deletingLastPathComponent())
         }
         let data = try Data(contentsOf: fileURL)
-        return try JSONDecoder().decode(GoogleCredential.self, from: data)
+        let credential = try JSONDecoder().decode(GooglePlayCredentialInput.self, from: data)
+        return GoogleCredential(email: credential.email, masterToken: credential.masterToken)
     }
 
     public static func removeCredentialFile(at fileURL: URL?, fileManager: FileManager = .default) {

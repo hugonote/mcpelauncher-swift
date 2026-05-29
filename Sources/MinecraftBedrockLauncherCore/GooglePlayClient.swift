@@ -35,13 +35,13 @@ public struct GooglePlayDownloadResponse: Codable, Equatable, Sendable {
 }
 
 public protocol GooglePlayDownloading: Sendable {
-    func auth(_ request: GooglePlayAuthRequest) throws -> GoogleCredential
+    func auth(_ request: GooglePlayAuthRequest) async throws -> GoogleCredential
 
     func latest(
         packageName: String,
         abi: String,
         credential: GoogleCredential
-    ) throws -> LatestVersion
+    ) async throws -> LatestVersion
 
     func download(
         packageName: String,
@@ -50,7 +50,7 @@ public protocol GooglePlayDownloading: Sendable {
         abi: String,
         credential: GoogleCredential,
         progress: @escaping @Sendable (DownloadProgress) -> Void
-    ) throws -> GooglePlayDownloadResponse
+    ) async throws -> GooglePlayDownloadResponse
 
     func checkDownloadAccess(
         packageName: String,
@@ -58,7 +58,7 @@ public protocol GooglePlayDownloading: Sendable {
         outputDirectory: URL,
         abi: String,
         credential: GoogleCredential
-    ) throws
+    ) async throws
 }
 
 public extension GooglePlayDownloading {
@@ -68,8 +68,8 @@ public extension GooglePlayDownloading {
         outputDirectory: URL,
         abi: String,
         credential: GoogleCredential
-    ) throws {
-        _ = try download(
+    ) async throws {
+        _ = try await download(
             packageName: packageName,
             versionCode: versionCode,
             outputDirectory: outputDirectory,

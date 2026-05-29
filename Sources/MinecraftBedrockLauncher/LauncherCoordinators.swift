@@ -11,9 +11,7 @@ struct LoginCoordinator: Sendable {
             userID: userID,
             oauthToken: oauthToken
         )
-        let credential = try await runOffMain {
-            try googlePlay.auth(request)
-        }
+        let credential = try await googlePlay.auth(request)
         try credentialStore.saveCredential(credential)
         return credential
     }
@@ -27,13 +25,11 @@ struct MinecraftDownloadCoordinator: Sendable {
     var processRunner: ProcessRunning
 
     func latestVersion(credential: GoogleCredential) async throws -> LatestVersion {
-        try await runOffMain {
-            try googlePlay.latest(
-                packageName: Self.packageName,
-                abi: Self.abi,
-                credential: credential
-            )
-        }
+        try await googlePlay.latest(
+            packageName: Self.packageName,
+            abi: Self.abi,
+            credential: credential
+        )
     }
 
     func checkDownloadAccess(
@@ -41,21 +37,16 @@ struct MinecraftDownloadCoordinator: Sendable {
         credential: GoogleCredential,
         outputDirectory: URL
     ) async throws {
-        do {
-            try await runOffMain {
-                try googlePlay.checkDownloadAccess(
-                    packageName: Self.packageName,
-                    versionCode: version.versionCode,
-                    outputDirectory: outputDirectory,
-                    abi: Self.abi,
-                    credential: credential
-                )
-            }
-        } catch {
+        defer {
             try? FileManager.default.removeItem(at: outputDirectory)
-            throw error
         }
-        try? FileManager.default.removeItem(at: outputDirectory)
+        try await googlePlay.checkDownloadAccess(
+            packageName: Self.packageName,
+            versionCode: version.versionCode,
+            outputDirectory: outputDirectory,
+            abi: Self.abi,
+            credential: credential
+        )
     }
 
     func download(
@@ -64,17 +55,15 @@ struct MinecraftDownloadCoordinator: Sendable {
         outputDirectory: URL,
         progress: @escaping @Sendable (DownloadProgress) -> Void
     ) async throws -> GooglePlayDownloadResponse {
-        try await runOffMain {
-            try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
-            return try googlePlay.download(
-                packageName: Self.packageName,
-                versionCode: version.versionCode,
-                outputDirectory: outputDirectory,
-                abi: Self.abi,
-                credential: credential,
-                progress: progress
-            )
-        }
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        return try await googlePlay.download(
+            packageName: Self.packageName,
+            versionCode: version.versionCode,
+            outputDirectory: outputDirectory,
+            abi: Self.abi,
+            credential: credential,
+            progress: progress
+        )
     }
 
     func install(

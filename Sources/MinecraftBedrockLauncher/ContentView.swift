@@ -1101,7 +1101,7 @@ struct ContentView: View {
             return "Ready"
         }
         if model.credential == nil {
-            return "Sign in required"
+            return "Not signed in"
         }
         if model.latestVersion == nil {
             return "Ready to check"

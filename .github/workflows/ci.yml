@@ -28,16 +28,8 @@ jobs:
       - name: Build credentials helper
         run: swift build -c release --product mcpelauncher-ui-qt
 
-      - name: Install Google Play API build tools
-        run: brew install cmake protobuf abseil
-
-      - name: Build Google Play API tools
-        run: Scripts/build-google-play-tools.sh
-
       - name: Build app bundle
         env:
-          GPLAYVER_PATH: .build/google-play-api-build/gplayver
-          GPLAYDL_PATH: .build/google-play-api-build/gplaydl
           CODESIGN_IDENTITY: skip
         run: Scripts/build-app-bundle.sh
 

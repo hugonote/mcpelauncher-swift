@@ -125,16 +125,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
-      - name: Install Google Play API build tools
-        run: brew install cmake protobuf abseil
-
-      - name: Build Google Play API tools
-        run: Scripts/build-google-play-tools.sh
-
       - name: Build DMG
-        env:
-          GPLAYVER_PATH: .build/google-play-api-build/gplayver
-          GPLAYDL_PATH: .build/google-play-api-build/gplaydl
         run: Scripts/build-dmg.sh
 
       - name: Notarize and staple DMG

@@ -54,6 +54,7 @@ brew install --cask minecraft-bedrock-launcher
 - Store Google Play credentials in the macOS Keychain.
 - Version lookup and APK/split APK download through native Swift Google Play/Finsky code.
 - Runtime download/update and compatibility patch setup.
+- Touch Bar controls on supported MacBook Pro models.
 
 The launcher code is MIT licensed. Upstream components keep their own licenses.
 

@@ -63,6 +63,7 @@ struct ContentView: View {
             Text("You will need to sign in again before downloading Minecraft updates.")
         }
         .background(WindowConfigurator(window: $window, isVisible: isStartupComplete))
+        .background(touchBarConfigurator)
         .onChange(of: model.downloadState) { _, _ in
             updateDockProgress()
         }

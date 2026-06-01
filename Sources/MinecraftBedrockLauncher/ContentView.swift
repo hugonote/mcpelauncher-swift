@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var isTitleIconVisible = false
     @State private var isPresentingRunningGameWarning = false
     @State private var window: NSWindow?
+    @State private var pendingQuickLaunch = false
     @Environment(\.openSettings) private var openSettings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -92,6 +93,9 @@ struct ContentView: View {
             }
             let shouldUseQuickLaunch = LauncherPreferences.quickLaunch && !StartupLaunchModifiers.didHoldOption
             await model.start()
+            if shouldUseQuickLaunch && model.credentialAccessDenied && model.canUseSelectedVersion {
+                pendingQuickLaunch = true
+            }
             if shouldUseQuickLaunch && model.canQuickLaunchSelectedVersion {
                 model.beginQuickLaunch()
             }
@@ -99,7 +103,12 @@ struct ContentView: View {
             StartupWindowVisibility.shared.reveal(window)
             await Task.yield()
             if model.isQuickLaunchActive {
+                guard !StartupLaunchModifiers.isOptionPressed else {
+                    model.finishQuickLaunch()
+                    return
+                }
                 await model.continueStartupForQuickLaunch()
+                await Task.yield()
                 guard model.isQuickLaunchActive,
                       model.canQuickLaunchSelectedVersion,
                       !StartupLaunchModifiers.isOptionPressed else {
@@ -378,7 +387,23 @@ struct ContentView: View {
             }
 
             Button {
-                Task { await model.retryStoredCredentialAccess() }
+                Task {
+                    let wasQuickLaunch = pendingQuickLaunch
+                    pendingQuickLaunch = false
+                    await model.retryStoredCredentialAccess(forQuickLaunch: wasQuickLaunch)
+                    if wasQuickLaunch {
+                        await Task.yield()
+                        guard model.isQuickLaunchActive,
+                              model.canQuickLaunchSelectedVersion,
+                              !StartupLaunchModifiers.isOptionPressed else {
+                            model.finishQuickLaunch()
+                            return
+                        }
+                        model.finishQuickLaunch()
+                        await model.playSelected(captureLog: false)
+                        revealLauncherAfterFailedQuickLaunchIfNeeded()
+                    }
+                }
             } label: {
                 Label("Retry", systemImage: "arrow.clockwise")
                     .font(.body.weight(.semibold))

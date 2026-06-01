@@ -283,14 +283,24 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    func retryStoredCredentialAccess() async {
+    func retryStoredCredentialAccess(forQuickLaunch: Bool = false) async {
         didTryLoadingStoredCredential = false
         credentialAccessDenied = false
         errorText = nil
         updateWarningText = nil
         statusText = "Requesting Keychain access"
+        if forQuickLaunch {
+            beginQuickLaunch()
+        }
         await loadStoredCredential()
-        await continueStartupAfterWindowReveal()
+        if forQuickLaunch && canQuickLaunchSelectedVersion {
+            await continueStartupForQuickLaunch()
+        } else {
+            if forQuickLaunch {
+                finishQuickLaunch()
+            }
+            await continueStartupAfterWindowReveal()
+        }
     }
 
     func signOut() {

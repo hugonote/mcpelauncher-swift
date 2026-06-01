@@ -145,3 +145,71 @@ struct WindowConfigurator: NSViewRepresentable {
         }
     }
 }
+
+struct QuickLaunchOptionMonitor: NSViewRepresentable {
+    var isActive: Bool
+    var onOptionPressed: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        context.coordinator.update(isActive: isActive, onOptionPressed: onOptionPressed)
+        return NSView()
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.update(isActive: isActive, onOptionPressed: onOptionPressed)
+    }
+
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    final class Coordinator {
+        private var monitor: Any?
+        private var isActive = false
+        private var onOptionPressed: () -> Void = {}
+
+        deinit {
+            stop()
+        }
+
+        func update(isActive: Bool, onOptionPressed: @escaping () -> Void) {
+            self.isActive = isActive
+            self.onOptionPressed = onOptionPressed
+
+            if isActive {
+                startIfNeeded()
+            } else {
+                stop()
+            }
+        }
+
+        func stop() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        private func startIfNeeded() {
+            guard monitor == nil else {
+                return
+            }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+                guard let self else {
+                    return event
+                }
+                if self.isActive,
+                   event.modifierFlags
+                    .intersection(.deviceIndependentFlagsMask)
+                    .contains(.option) {
+                    self.onOptionPressed()
+                }
+                return event
+            }
+        }
+    }
+}

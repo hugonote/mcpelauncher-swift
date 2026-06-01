@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var openExistingInstanceObserver: NSObjectProtocol?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        StartupLaunchModifiers.capture()
+
         guard instanceLock.acquire() else {
             DistributedNotificationCenter.default().postNotificationName(
                 Self.openExistingInstanceNotification,
@@ -128,6 +130,21 @@ private final class LauncherSingleInstanceLock {
 
     deinit {
         release()
+    }
+}
+
+@MainActor
+enum StartupLaunchModifiers {
+    private(set) static var didHoldOption = false
+
+    static func capture() {
+        didHoldOption = isOptionPressed
+    }
+
+    static var isOptionPressed: Bool {
+        NSEvent.modifierFlags
+            .intersection(.deviceIndependentFlagsMask)
+            .contains(.option)
     }
 }
 

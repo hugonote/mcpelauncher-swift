@@ -2,6 +2,7 @@ import Foundation
 import MinecraftBedrockLauncherCore
 
 enum LauncherPreferences {
+    static let quickLaunchKey = "quickLaunch"
     static let automaticallyCheckRuntimeUpdatesKey = "automaticallyCheckRuntimeUpdates"
     static let automaticallyCheckGameUpdatesKey = "automaticallyCheckGameUpdates"
     static let automaticallyCheckLauncherUpdatesKey = "automaticallyCheckLauncherUpdates"
@@ -11,6 +12,7 @@ enum LauncherPreferences {
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
+            quickLaunchKey: false,
             automaticallyCheckRuntimeUpdatesKey: true,
             automaticallyCheckGameUpdatesKey: true,
             automaticallyCheckLauncherUpdatesKey: true,
@@ -18,6 +20,10 @@ enum LauncherPreferences {
             fpsCounterVisibilityKey: RuntimeHUDVisibility.off.rawValue,
             vSyncEnabledKey: true
         ])
+    }
+
+    static var quickLaunch: Bool {
+        UserDefaults.standard.bool(forKey: quickLaunchKey)
     }
 
     static var automaticallyCheckRuntimeUpdates: Bool {

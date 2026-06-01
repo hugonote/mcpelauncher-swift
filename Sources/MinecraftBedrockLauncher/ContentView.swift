@@ -33,6 +33,9 @@ struct ContentView: View {
                 }
                 Spacer(minLength: 0)
                 if !shouldHideChrome {
+                    if model.isQuickLaunchActive {
+                        quickLaunchHint
+                    }
                     statusBar
                 }
             }
@@ -63,6 +66,11 @@ struct ContentView: View {
             Text("You will need to sign in again before downloading Minecraft updates.")
         }
         .background(WindowConfigurator(window: $window, isVisible: isStartupComplete))
+        .background(
+            QuickLaunchOptionMonitor(isActive: model.isQuickLaunchActive) {
+                model.finishQuickLaunch()
+            }
+        )
         .background(touchBarConfigurator)
         .onChange(of: model.downloadState) { _, _ in
             updateDockProgress()
@@ -82,16 +90,44 @@ struct ContentView: View {
             guard let window else {
                 return
             }
+            let shouldUseQuickLaunch = LauncherPreferences.quickLaunch && !StartupLaunchModifiers.didHoldOption
             await model.start()
+            if shouldUseQuickLaunch && model.canQuickLaunchSelectedVersion {
+                model.beginQuickLaunch()
+            }
             isStartupComplete = true
             StartupWindowVisibility.shared.reveal(window)
             await Task.yield()
-            await model.continueStartupAfterWindowReveal()
+            if model.isQuickLaunchActive {
+                await model.continueStartupForQuickLaunch()
+                guard model.isQuickLaunchActive,
+                      model.canQuickLaunchSelectedVersion,
+                      !StartupLaunchModifiers.isOptionPressed else {
+                    model.finishQuickLaunch()
+                    return
+                }
+                model.finishQuickLaunch()
+                await model.playSelected(captureLog: false)
+                revealLauncherAfterFailedQuickLaunchIfNeeded()
+            } else {
+                await model.continueStartupAfterWindowReveal()
+            }
         }
     }
 
     private func updateDockProgress() {
         DockProgressController.shared.update(downloadState: model.downloadState, runtimeState: model.runtimeState)
+    }
+
+    private func revealLauncherAfterFailedQuickLaunchIfNeeded() {
+        guard model.isShowingRunningGameWarning
+            || model.errorText != nil
+            || model.downloadState.phase == .failed
+            || model.runtimeState.phase == .failed else {
+            return
+        }
+        isStartupComplete = true
+        StartupWindowVisibility.shared.revealLauncherWindow()
     }
 
     private func presentRunningGameWarning() {
@@ -676,6 +712,18 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var quickLaunchHint: some View {
+        Text("Press ⌥ to cancel Quick Launch")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .frame(maxWidth: .infinity)
+            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 7))
+            .padding(.horizontal, 16)
+    }
+
     private func primaryAction() async {
         if needsCredentialRefresh {
             model.signOut()
@@ -1145,6 +1193,9 @@ struct ContentView: View {
     private var bottomContentPadding: CGFloat {
         if shouldHideChrome {
             return 20
+        }
+        if model.isQuickLaunchActive {
+            return 10
         }
         if model.isBlockingNetworkUnavailable {
             return 12

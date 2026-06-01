@@ -43,6 +43,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var credentialAccessDenied = false
     @Published var selectedVersionWarning: String?
     @Published private(set) var isLaunchingGame = false
+    @Published private(set) var isQuickLaunchActive = false
     @Published var showingLogin = false
     @Published var isShowingRunningGameWarning = false
     @Published var canSkipRuntimeUpdateCheck = false
@@ -176,6 +177,14 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func continueStartupAfterWindowReveal() async {
+        await continueStartupAfterInitialLoad(awaitsRuntimeUpdate: false)
+    }
+
+    func continueStartupForQuickLaunch() async {
+        await continueStartupAfterInitialLoad(awaitsRuntimeUpdate: true)
+    }
+
+    private func continueStartupAfterInitialLoad(awaitsRuntimeUpdate: Bool) async {
         guard didStart, !didContinueStartupAfterWindowReveal else {
             return
         }
@@ -186,12 +195,30 @@ final class LauncherViewModel: ObservableObject {
         didContinueStartupAfterWindowReveal = true
 
         if LauncherPreferences.automaticallyCheckRuntimeUpdates {
-            startAutomaticRuntimeUpdate()
+            if awaitsRuntimeUpdate {
+                startAutomaticRuntimeUpdate()
+                let updateTask = runtimeUpdateTask
+                await updateTask?.value
+            } else {
+                startAutomaticRuntimeUpdate()
+            }
         }
         guard credential != nil, LauncherPreferences.automaticallyCheckGameUpdates else {
             return
         }
         await fetchLatest()
+    }
+
+    var canQuickLaunchSelectedVersion: Bool {
+        credential != nil && canUseSelectedVersion && !credentialAccessDenied
+    }
+
+    func beginQuickLaunch() {
+        isQuickLaunchActive = true
+    }
+
+    func finishQuickLaunch() {
+        isQuickLaunchActive = false
     }
 
     func load(startsAutomaticRuntimeUpdate: Bool = true) async {

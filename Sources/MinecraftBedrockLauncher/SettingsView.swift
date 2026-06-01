@@ -1,9 +1,13 @@
+import AppKit
 import MinecraftBedrockLauncherCore
 import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var model: LauncherViewModel
     @Environment(\.dismiss) private var dismiss
+
+    @AppStorage(LauncherPreferences.quickLaunchKey)
+    private var quickLaunch = false
 
     @AppStorage(LauncherPreferences.automaticallyCheckRuntimeUpdatesKey)
     private var automaticallyCheckRuntimeUpdates = true
@@ -25,6 +29,8 @@ struct SettingsView: View {
 
     @State private var pendingDeleteAction: DeleteAction?
     @State private var completedAction: DeleteAction?
+    @State private var isPresentingQuickLaunchWarning = false
+    @State private var window: NSWindow?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -42,7 +48,7 @@ struct SettingsView: View {
                     Divider()
                     ToggleRow(
                         title: "Runtime",
-                        subtitle: "Keep native launcher files current",
+                        subtitle: "Keep native components current",
                         systemImage: "cpu",
                         isOn: $automaticallyCheckRuntimeUpdates
                     )
@@ -62,6 +68,13 @@ struct SettingsView: View {
                     .font(.headline)
 
                 VStack(spacing: 0) {
+                    ToggleRow(
+                        title: "Quick Launch",
+                        subtitle: "Start Minecraft automatically",
+                        systemImage: "bolt.fill",
+                        isOn: quickLaunchBinding
+                    )
+                    Divider()
                     ToggleRow(
                         title: "Status Bar",
                         subtitle: "Show runtime controls in Minecraft",
@@ -108,7 +121,7 @@ struct SettingsView: View {
                     Divider()
                     DeleteRow(
                         title: "Delete Game",
-                        subtitle: "Remove installed versions and APKs",
+                        subtitle: "Remove installed version",
                         systemImage: "cube",
                         isWorking: model.isDeletingGame,
                         isComplete: completedAction == .game,
@@ -134,6 +147,7 @@ struct SettingsView: View {
         .onExitCommand {
             dismiss()
         }
+        .background(SettingsWindowAccessor(window: $window))
         .background(
             KeyboardShortcutBridge(keyCode: 53) {
                 dismiss()
@@ -161,6 +175,50 @@ struct SettingsView: View {
                 Text(pendingDeleteAction.confirmationMessage)
             }
         }
+    }
+
+    private var quickLaunchBinding: Binding<Bool> {
+        Binding(
+            get: { quickLaunch },
+            set: { isEnabled in
+                if isEnabled {
+                    Task { @MainActor in
+                        if await presentQuickLaunchWarning() {
+                            quickLaunch = true
+                        }
+                    }
+                } else {
+                    quickLaunch = false
+                }
+            }
+        )
+    }
+
+    @MainActor
+    private func presentQuickLaunchWarning() async -> Bool {
+        guard !isPresentingQuickLaunchWarning else {
+            return false
+        }
+        isPresentingQuickLaunchWarning = true
+        defer { isPresentingQuickLaunchWarning = false }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.icon = NSImage(named: NSImage.cautionName)
+        alert.messageText = "Enable Quick Launch?"
+        alert.informativeText = """
+        Minecraft will start automatically.
+
+        Hold Option (⌥) during startup to cancel Quick Launch.
+        """
+        let cancelButton = alert.addButton(withTitle: "Cancel")
+        cancelButton.keyEquivalent = "\r"
+        let enableButton = alert.addButton(withTitle: "Enable")
+        enableButton.keyEquivalent = ""
+        if let window {
+            return await alert.beginSheetModal(for: window) == .alertSecondButtonReturn
+        }
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     private func perform(_ action: DeleteAction) {
@@ -362,6 +420,24 @@ private enum DeleteAction: Identifiable {
             return "Installed Minecraft versions and downloaded APK files will be removed."
         case .data:
             return "Minecraft data and cache will be removed, including local settings and worlds."
+        }
+    }
+}
+
+private struct SettingsWindowAccessor: NSViewRepresentable {
+    @Binding var window: NSWindow?
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            window = view.window
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            window = view.window
         }
     }
 }

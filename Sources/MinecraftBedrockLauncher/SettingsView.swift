@@ -30,7 +30,6 @@ struct SettingsView: View {
     @State private var pendingDeleteAction: DeleteAction?
     @State private var completedAction: DeleteAction?
     @State private var isPresentingQuickLaunchWarning = false
-    @State private var window: NSWindow?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -147,11 +146,10 @@ struct SettingsView: View {
         .onExitCommand {
             dismiss()
         }
-        .background(SettingsWindowAccessor(window: $window))
         .background(
-            KeyboardShortcutBridge(keyCode: 53) {
-                dismiss()
-            }
+            Button("", action: { dismiss() })
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
         )
         .onChange(of: showInGameStatusBar) { _, _ in
             model.saveRuntimeClientPreferences()
@@ -408,60 +406,3 @@ private enum DeleteAction: Identifiable {
     }
 }
 
-private struct SettingsWindowAccessor: NSViewRepresentable {
-    @Binding var window: NSWindow?
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            window = view.window
-        }
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            window = view.window
-        }
-    }
-}
-
-private struct KeyboardShortcutBridge: NSViewRepresentable {
-    var keyCode: UInt16
-    var action: () -> Void
-
-    func makeNSView(context: Context) -> ShortcutView {
-        let view = ShortcutView()
-        view.keyCode = keyCode
-        view.action = action
-        DispatchQueue.main.async {
-            view.window?.makeFirstResponder(view)
-        }
-        return view
-    }
-
-    func updateNSView(_ view: ShortcutView, context: Context) {
-        view.keyCode = keyCode
-        view.action = action
-        DispatchQueue.main.async {
-            view.window?.makeFirstResponder(view)
-        }
-    }
-
-    final class ShortcutView: NSView {
-        var keyCode: UInt16 = 0
-        var action: () -> Void = {}
-
-        override var acceptsFirstResponder: Bool {
-            true
-        }
-
-        override func keyDown(with event: NSEvent) {
-            if event.keyCode == keyCode {
-                action()
-            } else {
-                super.keyDown(with: event)
-            }
-        }
-    }
-}

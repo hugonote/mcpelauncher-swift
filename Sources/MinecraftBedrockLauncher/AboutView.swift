@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
+
     private let projectURL = URL(string: "https://github.com/hugonote/mcpelauncher-swift")!
     private let runtimeURL = URL(string: "https://github.com/minecraft-linux/mcpelauncher-manifest")!
 
@@ -47,6 +49,11 @@ struct AboutView: View {
         .padding(.top, 18)
         .padding(.bottom, 22)
         .frame(width: 360, height: 255)
+        .background(
+            Button("", action: { dismiss() })
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
+        )
     }
 
     private var thirdPartyNoticesURL: URL {

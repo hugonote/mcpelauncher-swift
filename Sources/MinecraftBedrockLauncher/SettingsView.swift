@@ -184,6 +184,12 @@ struct SettingsView: View {
                 Text(pendingDeleteAction.confirmationMessage)
             }
         }
+        .alert("Enable Quick Launch?", isPresented: $isPresentingQuickLaunchWarning) {
+            Button("Enable") { quickLaunch = true }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Minecraft will start automatically.\n\nHold Option (⌥) during startup to cancel Quick Launch.")
+        }
     }
 
     private var quickLaunchBinding: Binding<Bool> {
@@ -191,43 +197,12 @@ struct SettingsView: View {
             get: { quickLaunch },
             set: { isEnabled in
                 if isEnabled {
-                    Task { @MainActor in
-                        if await presentQuickLaunchWarning() {
-                            quickLaunch = true
-                        }
-                    }
+                    isPresentingQuickLaunchWarning = true
                 } else {
                     quickLaunch = false
                 }
             }
         )
-    }
-
-    @MainActor
-    private func presentQuickLaunchWarning() async -> Bool {
-        guard !isPresentingQuickLaunchWarning else {
-            return false
-        }
-        isPresentingQuickLaunchWarning = true
-        defer { isPresentingQuickLaunchWarning = false }
-
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.icon = NSImage(named: NSImage.cautionName)
-        alert.messageText = "Enable Quick Launch?"
-        alert.informativeText = """
-        Minecraft will start automatically.
-
-        Hold Option (⌥) during startup to cancel Quick Launch.
-        """
-        let cancelButton = alert.addButton(withTitle: "Cancel")
-        cancelButton.keyEquivalent = "\r"
-        let enableButton = alert.addButton(withTitle: "Enable")
-        enableButton.keyEquivalent = ""
-        if let window {
-            return await alert.beginSheetModal(for: window) == .alertSecondButtonReturn
-        }
-        return alert.runModal() == .alertSecondButtonReturn
     }
 
     private func perform(_ action: DeleteAction) {

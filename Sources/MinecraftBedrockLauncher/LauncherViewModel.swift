@@ -11,7 +11,14 @@ private struct PendingGameLaunch {
 private struct MinecraftVersionResolution {
     var reportedLatest: LatestVersion
     var downloadable: LatestVersion
+    var googlePlayLatestVersion: LatestVersion?
+    var newestSupportedVersion: SupportedMinecraftVersion?
     var usedSupportedFallback: Bool
+}
+
+private struct DownloadableVersionResolution {
+    var downloadable: LatestVersion
+    var newestSupportedVersion: SupportedMinecraftVersion?
 }
 
 private struct SignOutLegacyGooglePlayStateCleanupError: LocalizedError {
@@ -128,6 +135,8 @@ final class LauncherViewModel: ObservableObject {
     private var runtimeUpdateTask: Task<Void, Never>?
     private var runtimeSkipDelayTask: Task<Void, Never>?
     private var activeRuntimeUpdateID: UUID?
+    private var activeGameUpdateCheckID: UUID?
+    private var shouldSkipNextAutomaticGameUpdateCheck = false
     private var lastDownloadProgressUpdate: Date?
     private var lastDownloadProgressEventDate: Date?
     private var lastDownloadProgressBytes: Int64 = 0
@@ -204,6 +213,9 @@ final class LauncherViewModel: ObservableObject {
             }
         }
         guard credential != nil, LauncherPreferences.automaticallyCheckGameUpdates else {
+            return
+        }
+        guard shouldRunAutomaticGameUpdateCheck() else {
             return
         }
         await fetchLatest()
@@ -429,6 +441,10 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func fetchLatest() async {
+        let checkID = beginGameUpdateCheck()
+        defer {
+            finishGameUpdateCheck(checkID)
+        }
         do {
             errorText = nil
             isBlockingNetworkUnavailable = false
@@ -436,8 +452,15 @@ final class LauncherViewModel: ObservableObject {
             guard let credential = try loadStoredCredentialIfNeeded() else {
                 throw LauncherError.missingCredential
             }
+            guard isActiveGameUpdateCheck(checkID) else {
+                return
+            }
             downloadState = DownloadState(phase: .fetchingLatest)
             let resolution = try await resolveDownloadableVersion(credential: credential)
+            guard isActiveGameUpdateCheck(checkID) else {
+                return
+            }
+            applyVersionResolution(resolution)
             let latest = resolution.reportedLatest
             let downloadable = resolution.downloadable
             latestVersion = downloadable
@@ -448,6 +471,9 @@ final class LauncherViewModel: ObservableObject {
                     detail: "Checking purchase"
                 )
                 try await checkDownloadAccess(for: downloadable, credential: credential)
+                guard isActiveGameUpdateCheck(checkID) else {
+                    return
+                }
             }
             downloadState = DownloadState(versionName: downloadable.versionName)
             errorText = nil
@@ -463,6 +489,9 @@ final class LauncherViewModel: ObservableObject {
                 statusText = "Latest Google Play version: \(latest.versionName)."
             }
         } catch {
+            guard isActiveGameUpdateCheck(checkID) else {
+                return
+            }
             if selectedVersion != nil {
                 downloadState = DownloadState()
                 updateWarningText = "Update check failed"
@@ -474,24 +503,65 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    private func beginGameUpdateCheck() -> UUID {
+        let checkID = UUID()
+        activeGameUpdateCheckID = checkID
+        return checkID
+    }
+
+    private func finishGameUpdateCheck(_ checkID: UUID) {
+        if activeGameUpdateCheckID == checkID {
+            activeGameUpdateCheckID = nil
+        }
+    }
+
+    private func isActiveGameUpdateCheck(_ checkID: UUID) -> Bool {
+        activeGameUpdateCheckID == checkID && !Task.isCancelled
+    }
+
+    private func shouldRunAutomaticGameUpdateCheck() -> Bool {
+        guard shouldSkipNextAutomaticGameUpdateCheck else {
+            return true
+        }
+        shouldSkipNextAutomaticGameUpdateCheck = false
+        return false
+    }
+
+    private func skipActiveGameUpdateCheckForRuntimeSkip() {
+        guard activeGameUpdateCheckID != nil else {
+            return
+        }
+        activeGameUpdateCheckID = nil
+        if downloadState.phase == .fetchingLatest {
+            downloadState = latestVersion.map { DownloadState(versionName: $0.versionName) } ?? DownloadState()
+        }
+    }
+
+    private func applyVersionResolution(_ resolution: MinecraftVersionResolution) {
+        googlePlayLatestVersion = resolution.googlePlayLatestVersion
+        newestSupportedVersion = resolution.newestSupportedVersion
+        if resolution.usedSupportedFallback {
+            updateWarningText = "Latest Google Play version unavailable"
+        }
+    }
+
     private func resolveDownloadableVersion(credential: GoogleCredential) async throws -> MinecraftVersionResolution {
         let downloadCoordinator = makeMinecraftDownloadCoordinator()
         let latest: LatestVersion
         let usedSupportedFallback: Bool
         do {
             latest = try await downloadCoordinator.latestVersion(credential: credential)
-            googlePlayLatestVersion = latest
             usedSupportedFallback = false
         } catch {
             latest = try await supportedVersionFallback(after: error)
-            googlePlayLatestVersion = nil
             usedSupportedFallback = true
-            updateWarningText = "Latest Google Play version unavailable"
         }
-        let downloadable = try await downloadableVersion(for: latest)
+        let downloadableResolution = try await downloadableVersionResolution(for: latest)
         return MinecraftVersionResolution(
             reportedLatest: latest,
-            downloadable: downloadable,
+            downloadable: downloadableResolution.downloadable,
+            googlePlayLatestVersion: usedSupportedFallback ? nil : latest,
+            newestSupportedVersion: downloadableResolution.newestSupportedVersion,
             usedSupportedFallback: usedSupportedFallback
         )
     }
@@ -501,7 +571,6 @@ final class LauncherViewModel: ObservableObject {
             throw error
         }
         let metadata = try await ensureCompatibilityPatch()
-        newestSupportedVersion = metadata.newestSupportedVersion
         guard let supported = metadata.newestSupportedVersion else {
             throw error
         }
@@ -674,6 +743,7 @@ final class LauncherViewModel: ObservableObject {
             } else {
                 downloadState = DownloadState(phase: .fetchingLatest)
                 let resolution = try await resolveDownloadableVersion(credential: credential)
+                applyVersionResolution(resolution)
                 downloadable = resolution.downloadable
                 if resolution.usedSupportedFallback {
                     statusText = "Using latest macOS-supported Minecraft version: \(downloadable.versionName)."
@@ -1172,6 +1242,10 @@ final class LauncherViewModel: ObservableObject {
         runtimeSkipDelayTask?.cancel()
         runtimeSkipDelayTask = nil
         canSkipRuntimeUpdateCheck = false
+        if credential != nil && LauncherPreferences.automaticallyCheckGameUpdates {
+            shouldSkipNextAutomaticGameUpdateCheck = true
+        }
+        skipActiveGameUpdateCheckForRuntimeSkip()
 
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
         let coordinator = RuntimeInstallCoordinator(manager: manager)
@@ -1389,10 +1463,18 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func downloadableVersion(for latest: LatestVersion) async throws -> LatestVersion {
+        let resolution = try await downloadableVersionResolution(for: latest)
+        newestSupportedVersion = resolution.newestSupportedVersion
+        return resolution.downloadable
+    }
+
+    private func downloadableVersionResolution(for latest: LatestVersion) async throws -> DownloadableVersionResolution {
         let metadata = try await ensureCompatibilityPatch()
-        newestSupportedVersion = metadata.newestSupportedVersion
         if metadata.supports(versionCode: latest.versionCode) {
-            return latest
+            return DownloadableVersionResolution(
+                downloadable: latest,
+                newestSupportedVersion: metadata.newestSupportedVersion
+            )
         }
         guard let supported = metadata.newestSupportedVersion else {
             throw LauncherError.unsupportedMinecraftVersion(
@@ -1402,11 +1484,14 @@ final class LauncherViewModel: ObservableObject {
                 supportedVersionCode: nil
             )
         }
-        return LatestVersion(
-            packageName: latest.packageName,
-            versionName: supported.versionName,
-            versionCode: supported.versionCode,
-            isBeta: latest.isBeta
+        return DownloadableVersionResolution(
+            downloadable: LatestVersion(
+                packageName: latest.packageName,
+                versionName: supported.versionName,
+                versionCode: supported.versionCode,
+                isBeta: latest.isBeta
+            ),
+            newestSupportedVersion: metadata.newestSupportedVersion
         )
     }
 

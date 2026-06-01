@@ -7,6 +7,7 @@ struct LauncherTouchBarConfiguration {
     var onPrimary: @MainActor () -> Void
     var onSignIn: @MainActor () -> Void
     var onCancel: @MainActor () -> Void
+    var onSkipRuntimeUpdateCheck: @MainActor () -> Void
     var onSettings: @MainActor () -> Void
     var onOpenDataFolder: @MainActor () -> Void
 }
@@ -24,6 +25,7 @@ struct LauncherTouchBarState {
     var progressDetailText: String?
     var isProgressVisible: Bool
     var isCancelVisible: Bool
+    var isSkipVisible: Bool
     var isTrailingActionsVisible: Bool
     var isPrimaryVisible: Bool
     var isHidden: Bool
@@ -46,6 +48,7 @@ struct LauncherTouchBarState {
         progressDetailText = progressInfo.detailText
         isProgressVisible = progressVisible
         isCancelVisible = model.downloadState.phase == .downloading || model.runtimeState.phase == .downloading
+        isSkipVisible = model.canSkipRuntimeUpdateCheck
         isPrimaryVisible = !progressVisible
         isTrailingActionsVisible = Self.areTrailingActionsVisible(model, isProgressVisible: progressVisible)
         isHidden = model.activeIssue == .bundledHelperMissing

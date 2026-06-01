@@ -580,7 +580,7 @@ struct ContentView: View {
                         runtimeCancelableProgressText
                     }
                 } else {
-                    if model.canSkipRuntimeUpdateCheck {
+                    if model.runtimeState.phase == .checking {
                         runtimeSkipProgress
                     } else if model.runtimeState.phase == .downloading {
                         runtimeCancelableInlineProgress
@@ -593,22 +593,22 @@ struct ContentView: View {
     }
 
     private var runtimeSkipProgress: some View {
-        ZStack(alignment: .trailing) {
-            inlineProgressText(primary: runtimeProgressText)
-                .padding(.horizontal, 76)
-
-            Button {
-                model.skipRuntimeUpdateCheck()
-            } label: {
-                Label("Skip", systemImage: "forward.end")
-                    .labelStyle(.titleAndIcon)
+        inlineProgressText(primary: runtimeProgressText)
+            .overlay(alignment: .bottom) {
+                Button {
+                    model.skipRuntimeUpdateCheck()
+                } label: {
+                    Label("Skip", systemImage: "forward.end")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Skip runtime and Google Play update checks")
+                .disabled(!model.canSkipRuntimeUpdateCheck)
+                .opacity(model.canSkipRuntimeUpdateCheck ? 1 : 0)
+                .accessibilityHidden(!model.canSkipRuntimeUpdateCheck)
+                .offset(y: 14)
             }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .help("Skip runtime update check")
-        }
-        .frame(height: 31)
-        .frame(maxWidth: .infinity)
     }
 
     private var runtimeCancelableProgressText: some View {

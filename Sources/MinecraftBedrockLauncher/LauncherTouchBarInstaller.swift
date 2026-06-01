@@ -13,6 +13,7 @@ struct LauncherTouchBarInstaller: View {
                 onPrimary: performPrimaryAction,
                 onSignIn: showLogin,
                 onCancel: cancelActiveWork,
+                onSkipRuntimeUpdateCheck: skipRuntimeUpdateCheck,
                 onSettings: { openSettings() },
                 onOpenDataFolder: openDataFolder
             )
@@ -74,6 +75,10 @@ struct LauncherTouchBarInstaller: View {
         if model.downloadState.phase == .downloading {
             model.cancelDownload()
         }
+    }
+
+    private func skipRuntimeUpdateCheck() {
+        model.skipRuntimeUpdateCheck()
     }
 
     private func showLogin() {

@@ -37,6 +37,7 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
         static let status = NSTouchBarItem.Identifier("launcher.status")
         static let progress = NSTouchBarItem.Identifier("launcher.progress")
         static let cancel = NSTouchBarItem.Identifier("launcher.cancel")
+        static let skip = NSTouchBarItem.Identifier("launcher.skip")
         static let primary = NSTouchBarItem.Identifier("launcher.primary")
         static let signIn = NSTouchBarItem.Identifier("launcher.signIn")
         static let folder = NSTouchBarItem.Identifier("launcher.folder")
@@ -95,6 +96,8 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
                 action: #selector(cancel),
                 bezelColor: .systemRed
             )
+        case ItemID.skip:
+            return skipItem()
         case ItemID.primary:
             return primaryItem()
         case ItemID.signIn:
@@ -124,6 +127,10 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
 
     @objc func cancel() {
         configuration.onCancel()
+    }
+
+    @objc func skipRuntimeUpdateCheck() {
+        configuration.onSkipRuntimeUpdateCheck()
     }
 
     @objc func signIn() {
@@ -186,6 +193,10 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
             identifiers.append(ItemID.cancel)
             identifiers.append(.fixedSpaceSmall)
         }
+        if state.isSkipVisible {
+            identifiers.append(ItemID.skip)
+            identifiers.append(.fixedSpaceSmall)
+        }
         if state.isTrailingActionsVisible {
             identifiers.append(ItemID.folder)
             identifiers.append(.fixedSpaceSmall)
@@ -202,6 +213,32 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
         view.apply(configuration.state)
         item.view = view
         item.customizationLabel = configuration.state.statusText
+        item.visibilityPriority = .high
+        return item
+    }
+
+    private func skipItem() -> NSTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: ItemID.skip)
+        let button = NSButton(title: "Skip", target: self, action: #selector(skipRuntimeUpdateCheck))
+        setupButton(button)
+        button.imagePosition = .imageLeading
+        button.font = .systemFont(ofSize: 13, weight: .semibold)
+        button.target = self
+        button.action = #selector(skipRuntimeUpdateCheck)
+        button.title = "Skip"
+        button.attributedTitle = NSAttributedString(
+            string: "Skip",
+            attributes: TouchBarMetrics.secondaryButtonTitleAttributes
+        )
+        button.image = Self.symbol("forward.end", accessibilityLabel: "Skip")
+        button.toolTip = "Skip runtime and Google Play update checks"
+        button.setAccessibilityLabel("Skip runtime and Google Play update checks")
+        NSLayoutConstraint.activate([
+            button.widthAnchor.constraint(equalToConstant: TouchBarMetrics.skipButtonWidth),
+            button.heightAnchor.constraint(equalToConstant: TouchBarMetrics.height)
+        ])
+        item.view = button
+        item.customizationLabel = "Skip"
         item.visibilityPriority = .high
         return item
     }
@@ -557,6 +594,7 @@ private enum TouchBarMetrics {
     static let primaryDefaultWidth: CGFloat = 116
     static let primaryWideWidth: CGFloat = 166
     static let signInButtonWidth: CGFloat = 104
+    static let skipButtonWidth: CGFloat = 88
     static let iconButtonWidth: CGFloat = 38
 }
 

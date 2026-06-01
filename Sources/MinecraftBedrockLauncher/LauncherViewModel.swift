@@ -882,6 +882,14 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    func saveRuntimeClientPreferences() {
+        do {
+            try applyRuntimeClientPreferences(dataPath: paths.minecraftDataURL)
+        } catch {
+            show(error)
+        }
+    }
+
     func cancelRunningGameWarning() {
         pendingRunningGameLaunch = nil
         isShowingRunningGameWarning = false

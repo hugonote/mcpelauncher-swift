@@ -153,6 +153,15 @@ struct SettingsView: View {
                 dismiss()
             }
         )
+        .onChange(of: showInGameStatusBar) { _, _ in
+            model.saveRuntimeClientPreferences()
+        }
+        .onChange(of: fpsCounterVisibility) { _, _ in
+            model.saveRuntimeClientPreferences()
+        }
+        .onChange(of: vSyncEnabled) { _, _ in
+            model.saveRuntimeClientPreferences()
+        }
         .confirmationDialog(
             pendingDeleteAction?.confirmationTitle ?? "",
             isPresented: Binding(

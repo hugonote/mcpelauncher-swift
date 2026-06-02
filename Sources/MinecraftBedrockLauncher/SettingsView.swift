@@ -256,6 +256,8 @@ private struct ToggleRow: View {
 
             Toggle(title, isOn: $isOn)
                 .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)

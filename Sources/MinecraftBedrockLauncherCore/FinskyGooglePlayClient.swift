@@ -50,8 +50,7 @@ public struct FinskyGooglePlayClient: GooglePlayDownloading, Sendable {
             return LatestVersion(
                 packageName: version.packageName,
                 versionName: version.versionName ?? String(version.versionCode),
-                versionCode: version.versionCode,
-                isBeta: false
+                versionCode: version.versionCode
             )
         } catch let error as LauncherError {
             throw error

@@ -35,11 +35,4 @@ public final class InstalledVersionRegistry: @unchecked Sendable {
         let data = try encoder.encode(versions.sorted { $0.installedAt > $1.installedAt })
         try data.write(to: registryURL, options: [.atomic])
     }
-
-    public func upsert(_ version: InstalledVersion) throws {
-        var versions = try load()
-        versions.removeAll { $0.versionName == version.versionName }
-        versions.insert(version, at: 0)
-        try save(versions)
-    }
 }

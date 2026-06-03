@@ -29,7 +29,6 @@ final class FinskyGooglePlayClientTests: XCTestCase {
             _ = try await client.latest(credential: GoogleCredential(email: "user@example.com", masterToken: "master-token"))
             XCTFail("Expected googlePlayCredentialRequiresSignIn to be thrown.")
         } catch LauncherError.googlePlayCredentialRequiresSignIn {
-            // expected
         }
     }
 
@@ -48,7 +47,6 @@ final class FinskyGooglePlayClientTests: XCTestCase {
         XCTAssertEqual(latest.packageName, "com.mojang.minecraftpe")
         XCTAssertEqual(latest.versionCode, 840626000)
         XCTAssertEqual(latest.versionName, "1.20.81.01")
-        XCTAssertFalse(latest.isBeta)
     }
 
     func testDownloadMapsProgressAndFiles() async throws {

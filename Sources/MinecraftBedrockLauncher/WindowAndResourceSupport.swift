@@ -67,31 +67,27 @@ struct WindowConfigurator: NSViewRepresentable {
     @Binding var window: NSWindow?
     var isVisible: Bool
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            configure(window: view.window, isVisible: isVisible, coordinator: context.coordinator)
-            window = view.window
+    func makeNSView(context: Context) -> WindowAccessorView {
+        let view = WindowAccessorView()
+        view.windowDidChange = { window in
+            self.configure(window: window, isVisible: isVisible)
+            self.window = window
         }
         return view
     }
 
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            configure(window: view.window, isVisible: isVisible, coordinator: context.coordinator)
-            window = view.window
+    func updateNSView(_ view: WindowAccessorView, context: Context) {
+        view.windowDidChange = { window in
+            self.configure(window: window, isVisible: isVisible)
+            self.window = window
         }
+        configure(window: view.window, isVisible: isVisible)
     }
 
-    private func configure(window: NSWindow?, isVisible: Bool, coordinator: Coordinator) {
+    private func configure(window: NSWindow?, isVisible: Bool) {
         guard let window else {
             return
         }
-        coordinator.observeClose(of: window)
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
@@ -112,37 +108,14 @@ struct WindowConfigurator: NSViewRepresentable {
             window.ignoresMouseEvents = false
         }
     }
+}
 
-    final class Coordinator {
-        private weak var observedWindow: NSWindow?
-        private var closeObserver: NSObjectProtocol?
+final class WindowAccessorView: NSView {
+    var windowDidChange: ((NSWindow?) -> Void)?
 
-        deinit {
-            if let closeObserver {
-                NotificationCenter.default.removeObserver(closeObserver)
-            }
-        }
-
-        func observeClose(of window: NSWindow) {
-            guard observedWindow !== window else {
-                return
-            }
-
-            if let closeObserver {
-                NotificationCenter.default.removeObserver(closeObserver)
-            }
-
-            observedWindow = window
-            closeObserver = NotificationCenter.default.addObserver(
-                forName: NSWindow.willCloseNotification,
-                object: window,
-                queue: .main
-            ) { _ in
-                Task { @MainActor in
-                    NSApp.terminate(nil)
-                }
-            }
-        }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        windowDidChange?(window)
     }
 }
 

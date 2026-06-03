@@ -16,8 +16,7 @@ final class GameInstallerTests: XCTestCase {
         let latest = LatestVersion(
             packageName: "com.mojang.minecraftpe",
             versionName: "1.26.20.4",
-            versionCode: 126200004,
-            isBeta: false
+            versionCode: 126200004
         )
 
         let installed = try GameInstaller().install(
@@ -44,7 +43,7 @@ final class GameInstallerTests: XCTestCase {
             includeManifest: true,
             includeMinecraftLibrary: false
         )
-        let latest = LatestVersion(packageName: "com.mojang.minecraftpe", versionName: "1.0", versionCode: 1, isBeta: false)
+        let latest = LatestVersion(packageName: "com.mojang.minecraftpe", versionName: "1.0", versionCode: 1)
 
         XCTAssertThrowsError(
             try GameInstaller().install(apkFiles: [apkURL], latestVersion: latest, versionsDirectory: temp.url.appendingPathComponent("versions"))

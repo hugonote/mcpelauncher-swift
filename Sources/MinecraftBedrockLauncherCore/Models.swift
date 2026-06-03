@@ -196,13 +196,11 @@ public struct LatestVersion: Codable, Equatable, Sendable {
     public var packageName: String
     public var versionName: String
     public var versionCode: Int
-    public var isBeta: Bool
 
-    public init(packageName: String, versionName: String, versionCode: Int, isBeta: Bool) {
+    public init(packageName: String, versionName: String, versionCode: Int) {
         self.packageName = packageName
         self.versionName = versionName
         self.versionCode = versionCode
-        self.isBeta = isBeta
     }
 }
 

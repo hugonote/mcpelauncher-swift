@@ -22,13 +22,13 @@ struct LauncherTouchBarInstaller: View {
 
     private func performPrimaryAction() {
         if model.credentialAccessDenied {
-            Task { @MainActor in
+            Task {
                 await model.retryStoredCredentialAccess()
             }
             return
         }
 
-        Task { @MainActor in
+        Task {
             await runPrimaryAction()
         }
     }

@@ -386,10 +386,10 @@ enum LauncherTouchBarRules {
     static func isMinecraftUpdateAvailable(_ model: LauncherViewModel) -> Bool {
         guard model.credential != nil,
               let latest = model.latestVersion,
-              !model.installedVersions.isEmpty else {
+              let installed = model.selectedVersion else {
             return false
         }
-        return !model.installedVersions.contains { $0.versionCode == latest.versionCode }
+        return installed.versionCode != latest.versionCode
     }
 
     @MainActor

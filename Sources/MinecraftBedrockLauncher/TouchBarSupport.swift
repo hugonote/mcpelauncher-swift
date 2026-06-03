@@ -212,7 +212,7 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
         statusView = view
         view.apply(configuration.state)
         item.view = view
-        item.customizationLabel = configuration.state.statusText
+        item.customizationLabel = configuration.state.statusLabel
         item.visibilityPriority = .high
         return item
     }
@@ -421,11 +421,11 @@ private final class LauncherTouchBarStatusView: NSView {
 
     func apply(_ state: LauncherTouchBarState) {
         let isCompact = state.isProgressVisible
-        let fullWidth = state.statusText == "Keychain Access Needed"
+        let fullWidth = state.statusLabel == "Keychain Access Needed"
             ? TouchBarMetrics.statusWideWidth
             : TouchBarMetrics.statusFullWidth
         width = isCompact ? TouchBarMetrics.statusCompactWidth : fullWidth
-        label.stringValue = state.statusText
+        label.stringValue = state.statusLabel
         leadingConstraint.constant = TouchBarMetrics.statusHorizontalPadding
         trailingConstraint.constant = -TouchBarMetrics.statusHorizontalPadding
         layer?.backgroundColor = isCompact ? NSColor.clear.cgColor : NSColor.black.withAlphaComponent(0.22).cgColor

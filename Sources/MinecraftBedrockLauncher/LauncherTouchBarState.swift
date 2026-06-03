@@ -13,7 +13,7 @@ struct LauncherTouchBarConfiguration {
 }
 
 struct LauncherTouchBarState {
-    var statusText: String
+    var statusLabel: String
     var statusColor: NSColor
     var primaryTitle: String
     var primarySystemImage: String
@@ -35,7 +35,7 @@ struct LauncherTouchBarState {
         let progressVisible = Self.isProgressVisible(model)
         let credentialAccessDenied = model.credentialAccessDenied
 
-        statusText = credentialAccessDenied ? "Keychain Access Needed" : Self.shortStatusText(model)
+        statusLabel = credentialAccessDenied ? "Keychain Access Needed" : Self.shortStatusText(model)
         statusColor = Self.statusColor(model)
         primaryTitle = credentialAccessDenied ? "Retry" : Self.primaryButtonTitle(model)
         primarySystemImage = credentialAccessDenied ? "arrow.clockwise" : Self.primaryButtonIcon(model)

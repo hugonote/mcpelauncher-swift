@@ -50,7 +50,7 @@ struct GoogleLoginSheet: View {
             .frame(minWidth: 520, minHeight: 560)
 
             HStack {
-                Text(statusText)
+                Text(loginStatusMessage)
                     .foregroundStyle(.secondary)
                 Spacer()
                 if isCompleting {
@@ -70,7 +70,7 @@ struct GoogleLoginSheet: View {
         }
     }
 
-    private var statusText: String {
+    private var loginStatusMessage: String {
         if isCompleting {
             return "OAuth token captured. Completing sign in"
         }

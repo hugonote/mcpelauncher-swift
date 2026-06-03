@@ -44,7 +44,6 @@ final class LauncherViewModel: ObservableObject {
     }
     @Published var downloadState = DownloadState()
     @Published var runtimeState = RuntimeState()
-    @Published var statusText = "Ready"
     @Published private var errorState = LauncherErrorState()
     @Published var updateWarningText: String?
     @Published var credentialAccessDenied = false
@@ -246,7 +245,6 @@ final class LauncherViewModel: ObservableObject {
             if startsAutomaticRuntimeUpdate && LauncherPreferences.automaticallyCheckRuntimeUpdates {
                 startAutomaticRuntimeUpdate()
             }
-            statusText = selectedVersion == nil ? "Sign in to Google Play to download Minecraft." : "Ready."
         } catch {
             show(error)
         }
@@ -263,21 +261,15 @@ final class LauncherViewModel: ObservableObject {
     private func loadStoredCredential(fetchLatestAfterLoad: Bool) async {
         do {
             credentialAccessDenied = false
-            guard let credential = try loadStoredCredentialIfNeeded() else {
-                statusText = selectedVersion == nil ? "Sign in to Google Play to download Minecraft." : "Ready."
+            guard try loadStoredCredentialIfNeeded() != nil else {
                 return
             }
-            let email = displayEmail(for: credential.email)
             if fetchLatestAfterLoad && LauncherPreferences.automaticallyCheckGameUpdates {
-                statusText = "Signed in as \(email). Checking latest Google Play version"
                 await fetchLatest()
-            } else {
-                statusText = "Signed in as \(email)."
             }
         } catch KeychainError.accessDenied {
             credentialAccessDenied = true
             errorText = "Keychain access was denied."
-            statusText = "Keychain access required."
         } catch {
             show(error)
         }
@@ -288,7 +280,6 @@ final class LauncherViewModel: ObservableObject {
         credentialAccessDenied = false
         errorText = nil
         updateWarningText = nil
-        statusText = "Requesting Keychain access"
         if forQuickLaunch {
             beginQuickLaunch()
         }
@@ -316,10 +307,8 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             if legacyStateCleanupSucceeded {
                 updateWarningText = nil
-                statusText = "Signed out."
             } else {
                 updateWarningText = "Signed out, but old Google Play state could not be fully removed. Sign in will recreate it."
-                statusText = "Signed out with legacy Google Play cleanup warning."
             }
         } catch {
             show(error)
@@ -346,7 +335,6 @@ final class LauncherViewModel: ObservableObject {
             runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
             errorText = nil
             updateWarningText = nil
-            statusText = "Runtime deleted."
             return true
         } catch {
             show(error)
@@ -379,7 +367,6 @@ final class LauncherViewModel: ObservableObject {
             downloadState = DownloadState()
             errorText = nil
             updateWarningText = nil
-            statusText = "Installed games deleted."
             return true
         } catch {
             show(error)
@@ -402,7 +389,6 @@ final class LauncherViewModel: ObservableObject {
             }
             errorText = nil
             updateWarningText = nil
-            statusText = "Minecraft data deleted."
             return true
         } catch {
             show(error)
@@ -416,7 +402,6 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             updateWarningText = nil
             downloadState = DownloadState(phase: .authenticating)
-            statusText = "Completing Google Play sign in"
             let coordinator = LoginCoordinator(
                 googlePlay: makeGooglePlayClient(),
                 credentialStore: credentialStore
@@ -432,15 +417,11 @@ final class LauncherViewModel: ObservableObject {
             didTryLoadingStoredCredential = true
             downloadState = DownloadState()
             errorText = nil
-            statusText = "Signed in as \(displayEmail(for: savedCredential.email)). Checking latest Google Play version"
             await fetchLatest()
             return true
         } catch is CancellationError {
             if downloadState.phase == .authenticating {
                 downloadState = DownloadState()
-            }
-            if credential == nil {
-                statusText = selectedVersion == nil ? "Sign in to Google Play to download Minecraft." : "Ready."
             }
             return false
         } catch {
@@ -489,14 +470,8 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             if let installed = installedVersions.first(where: { $0.versionCode == downloadable.versionCode }) {
                 selectedVersion = installed
-                statusText = "\(downloadable.versionName) is already installed."
-            } else if resolution.usedSupportedFallback {
-                statusText = "Using latest macOS-supported Minecraft version: \(downloadable.versionName)."
             } else if downloadable.versionCode != latest.versionCode {
                 refreshSelectedVersionCompatibility()
-                statusText = "Google Play has \(latest.versionName), but macOS patches currently support \(downloadable.versionName)."
-            } else {
-                statusText = "Latest Google Play version: \(latest.versionName)."
             }
         } catch {
             guard isActiveGameUpdateCheck(checkID) else {
@@ -505,7 +480,6 @@ final class LauncherViewModel: ObservableObject {
             if selectedVersion != nil {
                 downloadState = DownloadState()
                 updateWarningText = "Update check failed"
-                statusText = "Could not check Minecraft updates: \(error.localizedDescription)"
             } else {
                 downloadState = DownloadState(phase: .failed, error: error.localizedDescription)
                 show(error)
@@ -647,7 +621,6 @@ final class LauncherViewModel: ObservableObject {
 
         if selectedVersion == nil {
             guard credential != nil else {
-                statusText = "Sign in to Google Play to download Minecraft."
                 return
             }
             startDownloadAndInstallLatest()
@@ -670,7 +643,6 @@ final class LauncherViewModel: ObservableObject {
         downloadState = latestVersion.map { DownloadState(versionName: $0.versionName) } ?? DownloadState()
         errorText = nil
         updateWarningText = nil
-        statusText = "Download canceled."
     }
 
     private func cancelActiveDownloadWork() {
@@ -735,7 +707,6 @@ final class LauncherViewModel: ObservableObject {
         }
         errorText = nil
         updateWarningText = nil
-        statusText = "Runtime download canceled."
     }
 
     private func downloadAndInstallLatest(downloadID: UUID) async {
@@ -755,9 +726,6 @@ final class LauncherViewModel: ObservableObject {
                 let resolution = try await resolveDownloadableVersion(credential: credential)
                 applyVersionResolution(resolution)
                 downloadable = resolution.downloadable
-                if resolution.usedSupportedFallback {
-                    statusText = "Using latest macOS-supported Minecraft version: \(downloadable.versionName)."
-                }
             }
             latestVersion = downloadable
 
@@ -852,7 +820,6 @@ final class LauncherViewModel: ObservableObject {
             lastDownloadProgressBytes = 0
             errorText = nil
             updateWarningText = nil
-            statusText = "Installed \(downloadable.versionName)."
         } catch is CancellationError {
             guard activeDownloadID == downloadID else {
                 return
@@ -867,7 +834,6 @@ final class LauncherViewModel: ObservableObject {
             downloadState = latestVersion.map { DownloadState(versionName: $0.versionName) } ?? DownloadState()
             errorText = nil
             updateWarningText = nil
-            statusText = "Download canceled."
             scheduleDownloadOutputCleanup(outputURL)
         } catch {
             guard activeDownloadID == downloadID else {
@@ -893,13 +859,11 @@ final class LauncherViewModel: ObservableObject {
             isBlockingNetworkUnavailable = false
             updateWarningText = nil
             guard let selectedVersion else {
-                statusText = "Install a version first."
                 return
             }
             if !allowsRunningGame, isMinecraftAlreadyRunning {
                 pendingRunningGameLaunch = PendingGameLaunch(captureLog: captureLog)
                 isShowingRunningGameWarning = true
-                statusText = "Minecraft is already running."
                 return
             }
             isLaunchingGame = true
@@ -910,7 +874,6 @@ final class LauncherViewModel: ObservableObject {
             let patchPath = try await compatibilityPatchPath(for: selectedVersion)
             try applyCompatibilityLibraryPatches(to: selectedVersion, patchPath: patchPath)
             let launcher = RuntimeLauncher(processRunner: processRunner)
-            statusText = "Launching \(selectedVersion.versionName)"
             let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
             guard let googleCredential = try loadStoredCredentialIfNeeded() else {
                 throw LauncherError.missingCredential
@@ -932,7 +895,6 @@ final class LauncherViewModel: ObservableObject {
                     detail: "Preparing first launch",
                     captureLog: captureLog
                 )
-                statusText = "Launching \(selectedVersion.versionName)"
             }
             let clientWrapperExecutableURL = clientWrapperExecutableURL()
             let clientWrapperIconURL = clientWrapperIconURL()
@@ -950,11 +912,6 @@ final class LauncherViewModel: ObservableObject {
             )
             NSApplication.shared.terminate(nil)
             errorText = nil
-            if let logURL {
-                statusText = "Minecraft exited. Log: \(logURL.path)"
-            } else {
-                statusText = "Minecraft exited."
-            }
         } catch {
             isLaunchingGame = false
             downloadState = DownloadState(versionName: selectedVersion?.versionName, phase: .failed, error: error.localizedDescription)
@@ -973,7 +930,6 @@ final class LauncherViewModel: ObservableObject {
     func cancelRunningGameWarning() {
         pendingRunningGameLaunch = nil
         isShowingRunningGameWarning = false
-        statusText = "Minecraft is already running."
     }
 
     func launchAnywayAfterRunningGameWarning() async {
@@ -1008,7 +964,6 @@ final class LauncherViewModel: ObservableObject {
                 phase: .preparingFirstLaunch,
                 detail: detail
             )
-            statusText = detail
 
             let warmUpLogURL = captureLog ? firstLaunchWarmUpLogURL(for: version, attempt: attempt) : nil
             lastWarmUpLogURL = warmUpLogURL
@@ -1283,7 +1238,6 @@ final class LauncherViewModel: ObservableObject {
         errorText = nil
         updateWarningText = nil
         isBlockingNetworkUnavailable = false
-        statusText = forceStatus
         runtimeState = RuntimeState(phase: phase, version: runtimeState.version, detail: forceStatus)
         if allowsSkip {
             runtimeSkipDelayTask = Task { [weak self] in
@@ -1446,7 +1400,6 @@ final class LauncherViewModel: ObservableObject {
                         blocksNetworkUnavailable: false
                     ))
                     self.updateWarningText = nil
-                    self.statusText = message
                     return true
                 }
                 if shouldStop {
@@ -1740,7 +1693,6 @@ final class LauncherViewModel: ObservableObject {
             error: error,
             blocksNetworkUnavailable: shouldShowBlockingNetworkUnavailable(for: issue)
         ))
-        statusText = error.localizedDescription
     }
 
     private func writeLastErrorLog(_ error: Error) {

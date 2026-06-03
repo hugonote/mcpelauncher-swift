@@ -93,10 +93,10 @@ struct ContentView: View {
             }
             let shouldUseQuickLaunch = LauncherPreferences.quickLaunch && !StartupLaunchModifiers.didHoldOption
             await model.start()
-            if shouldUseQuickLaunch && model.credentialAccessDenied && model.canUseSelectedVersion {
+            if shouldUseQuickLaunch && model.credentialAccessDenied && model.selectedVersion != nil {
                 pendingQuickLaunch = true
             }
-            if shouldUseQuickLaunch && model.canQuickLaunchSelectedVersion {
+            if shouldUseQuickLaunch && model.canStartQuickLaunch {
                 model.beginQuickLaunch()
             }
             isStartupComplete = true
@@ -108,20 +108,42 @@ struct ContentView: View {
                     return
                 }
                 await model.continueStartupForQuickLaunch()
-                await Task.yield()
-                guard model.isQuickLaunchActive,
-                      model.canQuickLaunchSelectedVersion,
-                      !StartupLaunchModifiers.isOptionPressed else {
-                    model.finishQuickLaunch()
-                    return
-                }
-                model.finishQuickLaunch()
-                await model.playSelected(captureLog: false)
-                revealLauncherAfterFailedQuickLaunchIfNeeded()
+                await runQuickLaunchIfReady()
             } else {
                 await model.continueStartupAfterWindowReveal()
             }
         }
+    }
+
+    private func runQuickLaunchIfReady() async {
+        await Task.yield()
+        guard model.isQuickLaunchActive,
+              model.canStartQuickLaunch,
+              model.isRuntimeReady,
+              !StartupLaunchModifiers.isOptionPressed else {
+            model.finishQuickLaunch()
+            return
+        }
+
+        guard await model.installAutomaticGameUpdateIfNeeded() else {
+            model.finishQuickLaunch()
+            revealLauncherAfterFailedQuickLaunchIfNeeded()
+            return
+        }
+
+        await Task.yield()
+        guard model.isQuickLaunchActive,
+              model.canQuickLaunchSelectedVersion,
+              !StartupLaunchModifiers.isOptionPressed else {
+            model.finishQuickLaunch()
+            return
+        }
+
+        await model.playSelected(captureLog: false)
+        if model.isQuickLaunchActive {
+            model.finishQuickLaunch()
+        }
+        revealLauncherAfterFailedQuickLaunchIfNeeded()
     }
 
     private func updateDockProgress() {
@@ -392,16 +414,7 @@ struct ContentView: View {
                     pendingQuickLaunch = false
                     await model.retryStoredCredentialAccess(forQuickLaunch: wasQuickLaunch)
                     if wasQuickLaunch {
-                        await Task.yield()
-                        guard model.isQuickLaunchActive,
-                              model.canQuickLaunchSelectedVersion,
-                              !StartupLaunchModifiers.isOptionPressed else {
-                            model.finishQuickLaunch()
-                            return
-                        }
-                        model.finishQuickLaunch()
-                        await model.playSelected(captureLog: false)
-                        revealLauncherAfterFailedQuickLaunchIfNeeded()
+                        await runQuickLaunchIfReady()
                     }
                 }
             } label: {

@@ -15,6 +15,9 @@ struct SettingsView: View {
     @AppStorage(LauncherPreferences.automaticallyCheckGameUpdatesKey)
     private var automaticallyCheckGameUpdates = true
 
+    @AppStorage(LauncherPreferences.automaticallyInstallGameUpdatesKey)
+    private var automaticallyInstallGameUpdates = false
+
     @AppStorage(LauncherPreferences.automaticallyCheckLauncherUpdatesKey)
     private var automaticallyCheckLauncherUpdates = true
 
@@ -34,7 +37,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Automatic Checks")
+                Text("Updates")
                     .font(.headline)
 
                 VStack(spacing: 0) {
@@ -52,11 +55,17 @@ struct SettingsView: View {
                         isOn: $automaticallyCheckRuntimeUpdates
                     )
                     Divider()
-                    ToggleRow(
+                    SegmentedRow(
                         title: "Minecraft",
-                        subtitle: "Check Google Play automatically",
+                        subtitle: "Game updates",
                         systemImage: "cube",
-                        isOn: $automaticallyCheckGameUpdates
+                        selection: minecraftUpdateModeBinding,
+                        options: [
+                            .init(title: "Off", value: MinecraftUpdateMode.off.rawValue),
+                            .init(title: "Check", value: MinecraftUpdateMode.onlyCheck.rawValue),
+                            .init(title: "Install", value: MinecraftUpdateMode.checkAndInstall.rawValue)
+                        ],
+                        isDisabled: !automaticallyCheckRuntimeUpdates
                     )
                 }
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -203,6 +212,24 @@ struct SettingsView: View {
         )
     }
 
+    private var minecraftUpdateModeBinding: Binding<Int> {
+        Binding(
+            get: {
+                guard automaticallyCheckGameUpdates else {
+                    return MinecraftUpdateMode.off.rawValue
+                }
+                return automaticallyInstallGameUpdates
+                    ? MinecraftUpdateMode.checkAndInstall.rawValue
+                    : MinecraftUpdateMode.onlyCheck.rawValue
+            },
+            set: { rawValue in
+                let mode = MinecraftUpdateMode(rawValue: rawValue) ?? .onlyCheck
+                automaticallyCheckGameUpdates = mode != .off
+                automaticallyInstallGameUpdates = mode == .checkAndInstall
+            }
+        )
+    }
+
     private func perform(_ action: DeleteAction) {
         guard !model.isStorageActionBusy else {
             return
@@ -228,6 +255,12 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+private enum MinecraftUpdateMode: Int {
+    case off
+    case onlyCheck
+    case checkAndInstall
 }
 
 private struct ToggleRow: View {
@@ -279,6 +312,8 @@ private struct SegmentedRow: View {
     var systemImage: String
     @Binding var selection: Int
     var options: [Option]
+    var pickerWidth: CGFloat = 176
+    var isDisabled = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -306,7 +341,8 @@ private struct SegmentedRow: View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
-            .frame(width: 176)
+            .frame(width: pickerWidth)
+            .disabled(isDisabled)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
@@ -407,4 +443,3 @@ private enum DeleteAction: Identifiable {
         }
     }
 }
-

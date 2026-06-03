@@ -5,21 +5,34 @@ enum LauncherPreferences {
     static let quickLaunchKey = "quickLaunch"
     static let automaticallyCheckRuntimeUpdatesKey = "automaticallyCheckRuntimeUpdates"
     static let automaticallyCheckGameUpdatesKey = "automaticallyCheckGameUpdates"
+    static let automaticallyInstallGameUpdatesKey = "automaticallyInstallGameUpdates"
     static let automaticallyCheckLauncherUpdatesKey = "automaticallyCheckLauncherUpdates"
     static let showInGameStatusBarKey = "showInGameStatusBar"
     static let fpsCounterVisibilityKey = "fpsCounterVisibility"
     static let vSyncEnabledKey = "vSyncEnabled"
 
     static func registerDefaults() {
-        UserDefaults.standard.register(defaults: [
+        let defaults = UserDefaults.standard
+        let hasAutomaticInstallPreference = defaults.object(forKey: automaticallyInstallGameUpdatesKey) != nil
+
+        defaults.register(defaults: [
             quickLaunchKey: false,
             automaticallyCheckRuntimeUpdatesKey: true,
             automaticallyCheckGameUpdatesKey: true,
+            automaticallyInstallGameUpdatesKey: false,
             automaticallyCheckLauncherUpdatesKey: true,
             showInGameStatusBarKey: false,
             fpsCounterVisibilityKey: RuntimeHUDVisibility.off.rawValue,
             vSyncEnabledKey: true
         ])
+
+        if !hasAutomaticInstallPreference {
+            let shouldInstallGameUpdates =
+                defaults.bool(forKey: automaticallyCheckLauncherUpdatesKey)
+                && defaults.bool(forKey: automaticallyCheckRuntimeUpdatesKey)
+                && defaults.bool(forKey: automaticallyCheckGameUpdatesKey)
+            defaults.set(shouldInstallGameUpdates, forKey: automaticallyInstallGameUpdatesKey)
+        }
     }
 
     static var quickLaunch: Bool {
@@ -32,6 +45,18 @@ enum LauncherPreferences {
 
     static var automaticallyCheckGameUpdates: Bool {
         UserDefaults.standard.bool(forKey: automaticallyCheckGameUpdatesKey)
+    }
+
+    static var automaticallyInstallGameUpdates: Bool {
+        UserDefaults.standard.bool(forKey: automaticallyInstallGameUpdatesKey)
+    }
+
+    static var canAutomaticallyCheckGameUpdates: Bool {
+        automaticallyCheckRuntimeUpdates && automaticallyCheckGameUpdates
+    }
+
+    static var canAutomaticallyInstallGameUpdates: Bool {
+        canAutomaticallyCheckGameUpdates && automaticallyInstallGameUpdates
     }
 
     static var automaticallyCheckLauncherUpdates: Bool {

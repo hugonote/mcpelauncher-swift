@@ -185,14 +185,14 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func continueStartupAfterWindowReveal() async {
-        await continueStartupAfterInitialLoad(awaitsRuntimeUpdate: false)
+        await continueStartupAfterInitialLoad()
     }
 
     func continueStartupForQuickLaunch() async {
-        await continueStartupAfterInitialLoad(awaitsRuntimeUpdate: true)
+        await continueStartupAfterInitialLoad()
     }
 
-    private func continueStartupAfterInitialLoad(awaitsRuntimeUpdate: Bool) async {
+    private func continueStartupAfterInitialLoad() async {
         guard didStart, !didContinueStartupAfterWindowReveal else {
             return
         }
@@ -203,25 +203,34 @@ final class LauncherViewModel: ObservableObject {
         didContinueStartupAfterWindowReveal = true
 
         if LauncherPreferences.automaticallyCheckRuntimeUpdates {
-            if awaitsRuntimeUpdate {
-                startAutomaticRuntimeUpdate()
-                let updateTask = runtimeUpdateTask
-                await updateTask?.value
-            } else {
-                startAutomaticRuntimeUpdate()
-            }
+            startAutomaticRuntimeUpdate()
+            let updateTask = runtimeUpdateTask
+            await updateTask?.value
         }
-        guard credential != nil, LauncherPreferences.automaticallyCheckGameUpdates else {
+        guard runtimePathForReadyRuntime() != nil else {
+            return
+        }
+        guard credential != nil else {
+            return
+        }
+        guard LauncherPreferences.canAutomaticallyCheckGameUpdates else {
             return
         }
         guard shouldRunAutomaticGameUpdateCheck() else {
             return
         }
         await fetchLatest()
+        if LauncherPreferences.canAutomaticallyInstallGameUpdates {
+            _ = await installAutomaticGameUpdateIfNeeded()
+        }
     }
 
     var canQuickLaunchSelectedVersion: Bool {
         credential != nil && canUseSelectedVersion && !credentialAccessDenied
+    }
+
+    var canStartQuickLaunch: Bool {
+        credential != nil && selectedVersion != nil && !credentialAccessDenied
     }
 
     func beginQuickLaunch() {
@@ -264,7 +273,7 @@ final class LauncherViewModel: ObservableObject {
             guard try loadStoredCredentialIfNeeded() != nil else {
                 return
             }
-            if fetchLatestAfterLoad && LauncherPreferences.automaticallyCheckGameUpdates {
+            if fetchLatestAfterLoad && LauncherPreferences.canAutomaticallyCheckGameUpdates {
                 await fetchLatest()
             }
         } catch KeychainError.accessDenied {
@@ -284,7 +293,7 @@ final class LauncherViewModel: ObservableObject {
             beginQuickLaunch()
         }
         await loadStoredCredential()
-        if forQuickLaunch && canQuickLaunchSelectedVersion {
+        if forQuickLaunch && canStartQuickLaunch {
             await continueStartupForQuickLaunch()
         } else {
             if forQuickLaunch {
@@ -432,6 +441,9 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func fetchLatest() async {
+        guard runtimePathForReadyRuntime() != nil else {
+            return
+        }
         let checkID = beginGameUpdateCheck()
         defer {
             finishGameUpdateCheck(checkID)
@@ -574,6 +586,8 @@ final class LauncherViewModel: ObservableObject {
         if !isRuntimeBusy {
             startAutomaticRuntimeUpdate()
         }
+        let updateTask = runtimeUpdateTask
+        await updateTask?.value
         guard credential != nil else {
             return
         }
@@ -585,8 +599,33 @@ final class LauncherViewModel: ObservableObject {
         activeDownloadID = downloadID
         activeDownloadTask?.cancel()
         activeDownloadTask = Task { [weak self] in
-            await self?.downloadAndInstallLatest(downloadID: downloadID)
+            _ = await self?.downloadAndInstallLatest(downloadID: downloadID)
         }
+    }
+
+    func installAutomaticGameUpdateIfNeeded() async -> Bool {
+        guard LauncherPreferences.canAutomaticallyInstallGameUpdates else {
+            return true
+        }
+        guard runtimePathForReadyRuntime() != nil else {
+            return false
+        }
+        guard selectedVersion != nil else {
+            return true
+        }
+        guard let latestVersion else {
+            return true
+        }
+        if let installed = installedVersions.first(where: { $0.versionCode == latestVersion.versionCode }) {
+            selectedVersion = installed
+            return true
+        }
+
+        let downloadID = UUID()
+        activeDownloadID = downloadID
+        activeDownloadTask?.cancel()
+        activeDownloadTask = nil
+        return await downloadAndInstallLatest(downloadID: downloadID)
     }
 
     func startRuntimeInstall() {
@@ -621,6 +660,10 @@ final class LauncherViewModel: ObservableObject {
 
         if selectedVersion == nil {
             guard credential != nil else {
+                return
+            }
+            if !isRuntimeReady {
+                startRuntimeInstall()
                 return
             }
             startDownloadAndInstallLatest()
@@ -709,7 +752,14 @@ final class LauncherViewModel: ObservableObject {
         updateWarningText = nil
     }
 
-    private func downloadAndInstallLatest(downloadID: UUID) async {
+    private func downloadAndInstallLatest(downloadID: UUID) async -> Bool {
+        guard await ensureRuntimeReadyForGameWork() else {
+            if activeDownloadID == downloadID {
+                activeDownloadID = nil
+                activeDownloadOutputURL = nil
+            }
+            return false
+        }
         do {
             errorText = nil
             isBlockingNetworkUnavailable = false
@@ -754,7 +804,7 @@ final class LauncherViewModel: ObservableObject {
                 progress: downloadProgress
             )
             guard activeDownloadID == downloadID, !Task.isCancelled else {
-                return
+                return false
             }
             downloadStallTask?.cancel()
             downloadStallTask = nil
@@ -780,7 +830,7 @@ final class LauncherViewModel: ObservableObject {
                 progress: extractProgress
             )
             guard activeDownloadID == downloadID, !Task.isCancelled else {
-                return
+                return false
             }
             downloadState = DownloadState(
                 versionName: downloadable.versionName,
@@ -790,24 +840,25 @@ final class LauncherViewModel: ObservableObject {
             )
             let patchPath = try await compatibilityPatchPath(for: installed)
             try applyCompatibilityLibraryPatches(to: installed, patchPath: patchPath)
-            if let runtimePath = await ensureRuntimeForUse() {
-                let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
-                let dataPath = paths.minecraftDataURL
-                let cachePath = paths.minecraftCacheURL
-                try applyRuntimeClientPreferences(dataPath: dataPath)
-                try await prepareFirstLaunchUntilReady(
-                    launcher: RuntimeLauncher(),
-                    runtimePath: runtimePath,
-                    version: installed,
-                    patchPath: patchPath,
-                    dataPath: dataPath,
-                    cachePath: cachePath,
-                    credentialsHelperDirectory: credentialsHelperDirectory,
-                    googleCredential: credential,
-                    detail: "Preparing first launch",
-                    captureLog: false
-                )
+            guard let runtimePath = runtimePathForReadyRuntime() else {
+                return false
             }
+            let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
+            let dataPath = paths.minecraftDataURL
+            let cachePath = paths.minecraftCacheURL
+            try applyRuntimeClientPreferences(dataPath: dataPath)
+            try await prepareFirstLaunchUntilReady(
+                launcher: RuntimeLauncher(),
+                runtimePath: runtimePath,
+                version: installed,
+                patchPath: patchPath,
+                dataPath: dataPath,
+                cachePath: cachePath,
+                credentialsHelperDirectory: credentialsHelperDirectory,
+                googleCredential: credential,
+                detail: "Preparing first launch",
+                captureLog: false
+            )
             try removeObsoleteMinecraftFiles(keeping: installed)
             try registry.save([installed])
             installedVersions = try registry.load()
@@ -820,9 +871,10 @@ final class LauncherViewModel: ObservableObject {
             lastDownloadProgressBytes = 0
             errorText = nil
             updateWarningText = nil
+            return true
         } catch is CancellationError {
             guard activeDownloadID == downloadID else {
-                return
+                return false
             }
             let outputURL = activeDownloadOutputURL
             activeDownloadID = nil
@@ -835,9 +887,10 @@ final class LauncherViewModel: ObservableObject {
             errorText = nil
             updateWarningText = nil
             scheduleDownloadOutputCleanup(outputURL)
+            return false
         } catch {
             guard activeDownloadID == downloadID else {
-                return
+                return false
             }
             activeDownloadID = nil
             activeDownloadOutputURL = nil
@@ -847,6 +900,7 @@ final class LauncherViewModel: ObservableObject {
             lastDownloadProgressBytes = 0
             downloadState = DownloadState(phase: .failed, error: error.localizedDescription)
             show(error)
+            return false
         }
     }
 
@@ -1207,7 +1261,7 @@ final class LauncherViewModel: ObservableObject {
         runtimeSkipDelayTask?.cancel()
         runtimeSkipDelayTask = nil
         canSkipRuntimeUpdateCheck = false
-        if credential != nil && LauncherPreferences.automaticallyCheckGameUpdates {
+        if credential != nil && LauncherPreferences.canAutomaticallyCheckGameUpdates {
             shouldSkipNextAutomaticGameUpdateCheck = true
         }
         skipActiveGameUpdateCheckForRuntimeSkip()
@@ -1423,6 +1477,39 @@ final class LauncherViewModel: ObservableObject {
         }
         let url = URL(fileURLWithPath: override, isDirectory: true)
         return (try? RuntimeLauncher(processRunner: processRunner).runtimeExecutable(in: url)) == nil ? nil : url
+    }
+
+    private func runtimePathForReadyRuntime() -> URL? {
+        if let override = runtimeOverrideURL() {
+            runtimeState = RuntimeState(phase: .ready, version: "override", detail: override.path)
+            return override
+        }
+
+        let current = paths.runtimeURL
+        let launcher = RuntimeLauncher(processRunner: processRunner)
+        guard (try? launcher.runtimeExecutable(in: current)) != nil else {
+            return nil
+        }
+        if runtimeState.phase != .ready {
+            refreshInstalledRuntimeState()
+        }
+        return current
+    }
+
+    private func ensureRuntimeReadyForGameWork() async -> Bool {
+        if runtimePathForReadyRuntime() != nil {
+            return true
+        }
+        if isRuntimeBusy {
+            let updateTask = runtimeUpdateTask
+            await updateTask?.value
+            return runtimePathForReadyRuntime() != nil
+        }
+
+        startRuntimeInstall()
+        let updateTask = runtimeUpdateTask
+        await updateTask?.value
+        return runtimePathForReadyRuntime() != nil
     }
 
     private func downloadableVersion(for latest: LatestVersion) async throws -> LatestVersion {

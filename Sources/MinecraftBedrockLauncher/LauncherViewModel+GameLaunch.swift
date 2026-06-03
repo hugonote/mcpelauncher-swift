@@ -18,6 +18,12 @@ extension LauncherViewModel {
             guard let selectedVersion else {
                 return
             }
+            guard registry.isInstalled(selectedVersion) else {
+                let installedVersions = (try? registry.load()) ?? []
+                self.selectedVersion = installedVersions.first
+                try? registry.save(installedVersions)
+                throw LauncherError.missingInstalledMinecraftVersion(selectedVersion.installPath)
+            }
             if !allowsRunningGame, isMinecraftAlreadyRunning {
                 pendingRunningGameLaunch = PendingGameLaunch(captureLog: captureLog)
                 isShowingRunningGameWarning = true

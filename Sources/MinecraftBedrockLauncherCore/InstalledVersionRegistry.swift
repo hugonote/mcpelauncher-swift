@@ -24,6 +24,7 @@ public final class InstalledVersionRegistry: @unchecked Sendable {
         }
         let data = try Data(contentsOf: registryURL)
         return try decoder.decode([InstalledVersion].self, from: data)
+            .filter { isInstalled($0) }
             .sorted { $0.installedAt > $1.installedAt }
     }
 
@@ -34,5 +35,22 @@ public final class InstalledVersionRegistry: @unchecked Sendable {
         )
         let data = try encoder.encode(versions.sorted { $0.installedAt > $1.installedAt })
         try data.write(to: registryURL, options: [.atomic])
+    }
+
+    public func isInstalled(_ version: InstalledVersion) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: version.installPath.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return false
+        }
+
+        let manifestURL = version.installPath.appendingPathComponent("AndroidManifest.xml", isDirectory: false)
+        let libraryURL = version.installPath
+            .appendingPathComponent("lib", isDirectory: true)
+            .appendingPathComponent("arm64-v8a", isDirectory: true)
+            .appendingPathComponent("libminecraftpe.so", isDirectory: false)
+
+        return fileManager.fileExists(atPath: manifestURL.path)
+            && fileManager.fileExists(atPath: libraryURL.path)
     }
 }

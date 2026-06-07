@@ -151,9 +151,8 @@ extension LauncherViewModel {
         runtimeSkipDelayTask = nil
         canSkipRuntimeUpdateCheck = false
         lastRuntimeProgressUpdate = nil
-        errorText = nil
+        reduceError(.clear)
         updateWarningText = nil
-        isBlockingNetworkUnavailable = false
         runtimeState = RuntimeState(phase: phase, version: runtimeState.version, detail: forceStatus)
         if allowsSkip {
             runtimeSkipDelayTask = Task { [weak self] in

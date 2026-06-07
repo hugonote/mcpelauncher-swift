@@ -77,6 +77,12 @@ extension ContentView {
         if model.activeIssue?.isNetworkUnavailable == true {
             return "Offline"
         }
+        if model.isRuntimeBusy && isRuntimeUpdateWork {
+            return "Runtime update"
+        }
+        if model.isGooglePlayBusy || model.isRuntimeBusy {
+            return "Working"
+        }
         if model.downloadState.phase == .failed {
             return "Download failed"
         }
@@ -88,12 +94,6 @@ extension ContentView {
         }
         if let updateWarningText = model.updateWarningText {
             return updateWarningText
-        }
-        if model.isRuntimeBusy && isRuntimeUpdateWork {
-            return "Runtime update"
-        }
-        if model.isGooglePlayBusy || model.isRuntimeBusy {
-            return "Working"
         }
         if shouldFocusRuntime {
             return "Runtime missing"

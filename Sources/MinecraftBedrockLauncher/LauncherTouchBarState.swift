@@ -295,6 +295,12 @@ struct LauncherTouchBarState {
         if model.activeIssue?.isNetworkUnavailable == true {
             return "Offline"
         }
+        if model.isRuntimeBusy && LauncherTouchBarRules.isRuntimeUpdateWork(model) {
+            return "Runtime update"
+        }
+        if model.isGooglePlayBusy || model.isRuntimeBusy {
+            return "Working"
+        }
         if model.downloadState.phase == .failed {
             return "Download failed"
         }
@@ -306,12 +312,6 @@ struct LauncherTouchBarState {
         }
         if let updateWarningText = model.updateWarningText {
             return updateWarningText
-        }
-        if model.isRuntimeBusy && LauncherTouchBarRules.isRuntimeUpdateWork(model) {
-            return "Runtime update"
-        }
-        if model.isGooglePlayBusy || model.isRuntimeBusy {
-            return "Working"
         }
         if LauncherTouchBarRules.shouldFocusRuntime(model) {
             return "Runtime missing"

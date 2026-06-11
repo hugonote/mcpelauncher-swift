@@ -361,6 +361,10 @@ final class RuntimeManagerTests: XCTestCase {
         try writeExecutable(executableURL)
         try writeExecutable(wrapperURL)
         try FileManager.default.createDirectory(at: versionURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: runtimeURL.appendingPathComponent("Frameworks", isDirectory: true),
+            withIntermediateDirectories: true
+        )
         try FileManager.default.createDirectory(at: iconURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("icon".utf8).write(to: iconURL)
         let appLauncher = MockRuntimeApplicationLauncher()
@@ -378,14 +382,22 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertEqual(appLauncher.launches.count, 1)
         let launch = try XCTUnwrap(appLauncher.launches.first)
         XCTAssertEqual(launch.appURL, runtimeURL.appendingPathComponent("Minecraft Bedrock.app", isDirectory: true))
-        XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.executableKey], executableURL.path)
+        let appURL = launch.appURL
+        let copiedClientURL = appURL.appendingPathComponent("Contents/MacOS/mcpelauncher-client", isDirectory: false)
+        XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.executableKey], copiedClientURL.path)
         XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.workingDirectoryKey], runtimeURL.path)
         XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.outputLogKey], logURL.path)
         XCTAssertEqual(launch.arguments, ["--disable-fmod", "-fes", "-dg", versionURL.path])
 
-        let appURL = launch.appURL
         let copiedWrapperURL = appURL.appendingPathComponent("Contents/MacOS/mcpelauncher-client-wrapper", isDirectory: false)
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: copiedWrapperURL.path))
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: copiedClientURL.path))
+        XCTAssertEqual(
+            try FileManager.default.destinationOfSymbolicLink(
+                atPath: appURL.appendingPathComponent("Contents/Frameworks", isDirectory: true).path
+            ),
+            "../../Frameworks"
+        )
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: appURL.appendingPathComponent("Contents/Resources/minecraft-bedrock.icns", isDirectory: false).path
         ))

@@ -137,13 +137,14 @@ public struct RuntimeLauncher: @unchecked Sendable {
 
         if let clientWrapperExecutableURL,
            fileManager.isExecutableFile(atPath: clientWrapperExecutableURL.path) {
-            let appURL = try prepareClientAppBundle(
+            let clientAppBundle = try prepareClientAppBundle(
                 runtimePath: runtimePath,
+                clientExecutableURL: command.executableURL,
                 clientWrapperExecutableURL: clientWrapperExecutableURL,
                 iconURL: clientWrapperIconURL
             )
             var environment = command.environment
-            environment[RuntimeClientWrapperEnvironment.executableKey] = command.executableURL.path
+            environment[RuntimeClientWrapperEnvironment.executableKey] = clientAppBundle.clientExecutableURL.path
             environment[RuntimeClientWrapperEnvironment.workingDirectoryKey] = command.currentDirectoryURL.path
             if capturesProcessOutput, let logURL {
                 environment[RuntimeClientWrapperEnvironment.outputLogKey] = logURL.path
@@ -153,11 +154,11 @@ public struct RuntimeLauncher: @unchecked Sendable {
                 command,
                 logURL: logURL,
                 capturesProcessOutput: capturesProcessOutput,
-                appBundleURL: appURL
+                appBundleURL: clientAppBundle.appURL
             )
             do {
                 try applicationLauncher.launchApplication(
-                    at: appURL,
+                    at: clientAppBundle.appURL,
                     arguments: command.arguments,
                     environment: environment
                 )
@@ -305,7 +306,15 @@ public struct RuntimeLauncher: @unchecked Sendable {
     }
 
     public func runtimeExecutable(in runtimePath: URL) throws -> URL {
-        let candidates = [
+        let candidates = Self.runtimeExecutableCandidates(in: runtimePath)
+        if let executable = candidates.first(where: { fileManager.isExecutableFile(atPath: $0.path) }) {
+            return executable
+        }
+        throw LauncherError.missingRuntimeExecutable(runtimePath)
+    }
+
+    static func runtimeExecutableCandidates(in runtimePath: URL) -> [URL] {
+        [
             runtimePath.appendingPathComponent("bin/mcpelauncher-client"),
             runtimePath.appendingPathComponent("MacOS/mcpelauncher-client-arm64-v8a"),
             runtimePath.appendingPathComponent("Contents/MacOS/mcpelauncher-client-arm64-v8a"),
@@ -316,10 +325,6 @@ public struct RuntimeLauncher: @unchecked Sendable {
             runtimePath.appendingPathComponent("mcpelauncher-client/mcpelauncher-client"),
             runtimePath.appendingPathComponent("mcpelauncher-client")
         ]
-        if let executable = candidates.first(where: { fileManager.isExecutableFile(atPath: $0.path) }) {
-            return executable
-        }
-        throw LauncherError.missingRuntimeExecutable(runtimePath)
     }
 
     func runtimeWorkingDirectory(for executableURL: URL, runtimePath: URL) -> URL {
@@ -454,9 +459,10 @@ public struct RuntimeLauncher: @unchecked Sendable {
 
     private func prepareClientAppBundle(
         runtimePath: URL,
+        clientExecutableURL: URL,
         clientWrapperExecutableURL: URL,
         iconURL: URL?
-    ) throws -> URL {
+    ) throws -> ClientAppBundle {
         let appURL = runtimeClientAppBundleURL(in: runtimePath)
         let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
         let macOSURL = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
@@ -467,6 +473,20 @@ public struct RuntimeLauncher: @unchecked Sendable {
         let wrapperDestinationURL = macOSURL.appendingPathComponent(Self.clientWrapperExecutableName, isDirectory: false)
         try copyItemReplacingExisting(from: clientWrapperExecutableURL, to: wrapperDestinationURL)
         try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: wrapperDestinationURL.path)
+
+        let clientDestinationURL = macOSURL.appendingPathComponent(clientExecutableURL.lastPathComponent, isDirectory: false)
+        try copyItemReplacingExisting(from: clientExecutableURL, to: clientDestinationURL)
+        try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: clientDestinationURL.path)
+
+        let runtimeFrameworksURL = runtimePath.appendingPathComponent("Frameworks", isDirectory: true)
+        if fileManager.fileExists(atPath: runtimeFrameworksURL.path) {
+            let appFrameworksURL = contentsURL.appendingPathComponent("Frameworks", isDirectory: true)
+            try removeItemIfPresent(at: appFrameworksURL)
+            try fileManager.createSymbolicLink(
+                atPath: appFrameworksURL.path,
+                withDestinationPath: "../../Frameworks"
+            )
+        }
 
         if let iconURL, fileManager.fileExists(atPath: iconURL.path) {
             let iconDestinationURL = resourcesURL.appendingPathComponent("\(Self.clientIconName).icns", isDirectory: false)
@@ -493,18 +513,27 @@ public struct RuntimeLauncher: @unchecked Sendable {
         ]
         let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try data.write(to: contentsURL.appendingPathComponent("Info.plist", isDirectory: false), options: .atomic)
-        return appURL
+        return ClientAppBundle(appURL: appURL, clientExecutableURL: clientDestinationURL)
     }
 
     private func copyItemReplacingExisting(from sourceURL: URL, to destinationURL: URL) throws {
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            try fileManager.removeItem(at: destinationURL)
-        }
+        try removeItemIfPresent(at: destinationURL)
         try fileManager.createDirectory(
             at: destinationURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
         try fileManager.copyItem(at: sourceURL, to: destinationURL)
+    }
+
+    private func removeItemIfPresent(at url: URL) throws {
+        var isDirectory: ObjCBool = false
+        if fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) || isSymbolicLink(at: url) {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
+    private func isSymbolicLink(at url: URL) -> Bool {
+        (try? fileManager.attributesOfItem(atPath: url.path)[.type] as? FileAttributeType) == .typeSymbolicLink
     }
 
     private func writeDetachedLaunchLog(
@@ -626,6 +655,11 @@ private struct LaunchCommand {
     var currentDirectoryURL: URL
     var environment: [String: String]
     var credentialFileURL: URL?
+}
+
+private struct ClientAppBundle {
+    var appURL: URL
+    var clientExecutableURL: URL
 }
 
 enum RuntimeClientWrapperEnvironment {

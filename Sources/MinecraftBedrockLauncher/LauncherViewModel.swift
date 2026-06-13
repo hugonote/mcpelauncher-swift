@@ -29,6 +29,9 @@ final class LauncherViewModel: ObservableObject {
     @Published var isDeletingRuntime = false
     @Published var isDeletingGame = false
     @Published var isDeletingData = false
+    @Published var isImportingContent = false
+    @Published var importingContentDescription: ContentImportDescription?
+    @Published var contentImportProgress: ContentImportProgress?
 
     var activeIssue: LauncherIssue? {
         errorState.activeIssue
@@ -67,6 +70,10 @@ final class LauncherViewModel: ObservableObject {
 
     var isStorageActionBusy: Bool {
         isDeletingRuntime || isDeletingGame || isDeletingData || isGooglePlayBusy || isRuntimeBusy || isLaunchingGame
+    }
+
+    var isGameLaunchBlocked: Bool {
+        isGooglePlayBusy || isRuntimeBusy || isLaunchingGame || isImportingContent
     }
 
     var isRuntimeReady: Bool {
@@ -126,6 +133,9 @@ final class LauncherViewModel: ObservableObject {
     var activeDownloadID: UUID?
     var activeDownloadOutputURL: URL?
     var pendingRunningGameLaunch: PendingGameLaunch?
+    var activeContentImportURLs: [URL] = []
+    var pendingContentImportURLs: [URL] = []
+    var completedContentImportFileCount = 0
 
     init(
         paths: AppPaths? = nil,

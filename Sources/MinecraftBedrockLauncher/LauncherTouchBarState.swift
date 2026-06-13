@@ -10,6 +10,7 @@ struct LauncherTouchBarConfiguration {
     var onSkipRuntimeUpdateCheck: @MainActor () -> Void
     var onSettings: @MainActor () -> Void
     var onOpenDataFolder: @MainActor () -> Void
+    var onImportContent: @MainActor () -> Void
 }
 
 struct LauncherTouchBarState {
@@ -117,7 +118,7 @@ struct LauncherTouchBarState {
 
     @MainActor
     private static func isPrimaryButtonDisabled(_ model: LauncherViewModel) -> Bool {
-        model.isGooglePlayBusy || model.isRuntimeBusy || model.isLaunchingGame
+        model.isGameLaunchBlocked
     }
 
     @MainActor
@@ -130,6 +131,9 @@ struct LauncherTouchBarState {
 
     @MainActor
     private static func isProgressVisible(_ model: LauncherViewModel) -> Bool {
+        if model.isImportingContent {
+            return true
+        }
         if model.isBlockingNetworkUnavailable {
             return true
         }
@@ -162,6 +166,9 @@ struct LauncherTouchBarState {
 
     @MainActor
     private static func progress(_ model: LauncherViewModel) -> Double? {
+        if model.isImportingContent {
+            return model.contentImportProgress?.fraction
+        }
         if model.downloadState.phase == .downloading {
             return model.downloadState.progress > 0 ? model.downloadState.progress : nil
         }
@@ -194,7 +201,16 @@ struct LauncherTouchBarState {
                 fallback: "Downloading"
             )
         }
-        if model.isGooglePlayBusy || model.isRuntimeBusy {
+        if model.isImportingContent {
+            if let contentImportProgress = model.contentImportProgress {
+                return ProgressInfo(
+                    percentText: String(format: "%.0f%%", min(max(contentImportProgress.fraction, 0), 1) * 100),
+                    detailText: contentImportProgress.text
+                )
+            }
+            return ProgressInfo()
+        }
+        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent {
             return ProgressInfo(detailText: busyText(model))
         }
         return ProgressInfo()
@@ -275,7 +291,7 @@ struct LauncherTouchBarState {
         if model.updateWarningText != nil {
             return .systemOrange
         }
-        if model.isGooglePlayBusy || model.isRuntimeBusy {
+        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent {
             return .systemOrange
         }
         if LauncherTouchBarRules.isMinecraftUpdateAvailable(model) {
@@ -297,6 +313,9 @@ struct LauncherTouchBarState {
         }
         if model.isRuntimeBusy && LauncherTouchBarRules.isRuntimeUpdateWork(model) {
             return "Runtime update"
+        }
+        if model.isImportingContent {
+            return "Importing"
         }
         if model.isGooglePlayBusy || model.isRuntimeBusy {
             return "Working"

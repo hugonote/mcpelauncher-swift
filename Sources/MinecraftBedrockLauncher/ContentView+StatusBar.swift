@@ -16,6 +16,15 @@ extension ContentView {
             Spacer()
 
             Button {
+                presentContentImportPanel()
+            } label: {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .buttonStyle(.borderless)
+            .help("Import Minecraft content")
+            .disabled(model.isImportingContent)
+
+            Button {
                 NSWorkspace.shared.open(model.dataFolderURL)
             } label: {
                 Image(systemName: "folder")
@@ -58,7 +67,7 @@ extension ContentView {
         if model.updateWarningText != nil {
             return .orange
         }
-        if model.isGooglePlayBusy || model.isRuntimeBusy {
+        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent {
             return .orange
         }
         if isMinecraftUpdateAvailable {
@@ -79,6 +88,9 @@ extension ContentView {
         }
         if model.isRuntimeBusy && isRuntimeUpdateWork {
             return "Runtime update"
+        }
+        if model.isImportingContent {
+            return "Importing"
         }
         if model.isGooglePlayBusy || model.isRuntimeBusy {
             return "Working"

@@ -4,7 +4,13 @@ import SwiftUI
 extension ContentView {
     @ViewBuilder
     var progress: some View {
-        if model.canSkipRuntimeUpdateCheck {
+        if model.isImportingContent {
+            if let contentImportProgress = model.contentImportProgress {
+                contentImportProgressView(contentImportProgress)
+            } else {
+                inlineProgressText(primary: model.importingContentDescription?.importingText ?? "Importing Minecraft content")
+            }
+        } else if model.canSkipRuntimeUpdateCheck {
             runtimeProgress
         } else if isShowingDownloadProgress {
             VStack(spacing: 6) {
@@ -33,6 +39,16 @@ extension ContentView {
             }
         } else if model.isRuntimeBusy {
             runtimeProgress
+        }
+    }
+
+    private func contentImportProgressView(_ importProgress: ContentImportProgress) -> some View {
+        VStack(spacing: 6) {
+            ProgressView(value: importProgress.fraction)
+            progressText(
+                primary: model.importingContentDescription?.importingText ?? "Importing Minecraft content",
+                secondary: importProgress.text
+            )
         }
     }
 
@@ -152,6 +168,9 @@ extension ContentView {
             return true
         }
         if isShowingDownloadProgress {
+            return true
+        }
+        if model.isImportingContent {
             return true
         }
         return model.isRuntimeBusy

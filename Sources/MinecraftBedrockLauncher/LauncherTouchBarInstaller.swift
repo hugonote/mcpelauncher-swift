@@ -15,7 +15,8 @@ struct LauncherTouchBarInstaller: View {
                 onCancel: cancelActiveWork,
                 onSkipRuntimeUpdateCheck: skipRuntimeUpdateCheck,
                 onSettings: { openSettings() },
-                onOpenDataFolder: openDataFolder
+                onOpenDataFolder: openDataFolder,
+                onImportContent: importContent
             )
         )
     }
@@ -87,5 +88,9 @@ struct LauncherTouchBarInstaller: View {
 
     private func openDataFolder() {
         NSWorkspace.shared.open(model.dataFolderURL)
+    }
+
+    private func importContent() {
+        ContentImportOpenFileQueue.shared.requestOpenPanel()
     }
 }

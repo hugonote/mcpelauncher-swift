@@ -4,7 +4,10 @@ extension ContentView {
     @ViewBuilder
     var actionSlot: some View {
         ZStack {
-            if isShowingProgress {
+            if isContentDropTargeted {
+                EmptyView()
+                    .transition(.opacity)
+            } else if isShowingProgress {
                 progress
                     .padding(.horizontal, 40)
                     .transition(.opacity)
@@ -15,6 +18,7 @@ extension ContentView {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 50)
+        .animation(contentDropStateAnimation, value: isContentDropTargeted)
     }
 
     private var actions: some View {
@@ -54,7 +58,7 @@ extension ContentView {
     }
 
     private var playSideButton: some View {
-        let isDisabled = model.isGooglePlayBusy || model.isRuntimeBusy || model.isLaunchingGame
+        let isDisabled = model.isGameLaunchBlocked
 
         return Button {
             Task { await model.playSelected(captureLog: false) }
@@ -190,7 +194,7 @@ extension ContentView {
     }
 
     private var isPrimaryButtonDisabled: Bool {
-        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isLaunchingGame {
+        if model.isGameLaunchBlocked {
             return true
         }
         if model.canUseSelectedVersion {

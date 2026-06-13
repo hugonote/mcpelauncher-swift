@@ -45,6 +45,12 @@ public struct AppPaths: Equatable, Sendable {
         baseURL.appendingPathComponent("MinecraftData", isDirectory: true)
     }
 
+    public var minecraftMojangURL: URL {
+        minecraftDataURL
+            .appendingPathComponent("games", isDirectory: true)
+            .appendingPathComponent("com.mojang", isDirectory: true)
+    }
+
     public var minecraftCacheURL: URL {
         baseURL.appendingPathComponent("MinecraftCache", isDirectory: true)
     }
@@ -81,6 +87,8 @@ public enum LauncherError: Error, LocalizedError, Equatable {
     case unsupportedMinecraftVersion(versionName: String, versionCode: Int, supportedVersionName: String?, supportedVersionCode: Int?)
     case missingInstalledMinecraftVersion(URL)
     case gameLaunchFailed(status: Int32, logURL: URL?, outputTail: String)
+    case unsupportedContentPack(URL)
+    case contentPackImportFailed(URL, reason: String)
 
     public var errorDescription: String? {
         switch self {
@@ -101,7 +109,7 @@ public enum LauncherError: Error, LocalizedError, Equatable {
         case .missingRuntimeExecutable(let url):
             return "Could not find mcpelauncher-client in runtime path \(url.path)."
         case .unsupportedArchiveTool(let url):
-            return "The unzip tool is not available or not executable: \(url.path)."
+            return "The archive tool is not available or not executable: \(url.path)."
         case .runtimeReleaseNotFound(let source):
             return "Could not find a compatible runtime release at \(source)."
         case .runtimeInstallFailed(let message):
@@ -123,6 +131,10 @@ public enum LauncherError: Error, LocalizedError, Equatable {
             let logText = logURL.map { " Log: \($0.path)." } ?? ""
             let tailText = outputTail.isEmpty ? "" : " Last output: \(outputTail)"
             return "Minecraft exited with status \(status).\(logText)\(tailText)"
+        case .unsupportedContentPack(let url):
+            return "Unsupported Minecraft content file: \(url.lastPathComponent)."
+        case .contentPackImportFailed(let url, let reason):
+            return "Could not import \(url.lastPathComponent): \(reason)"
         }
     }
 }

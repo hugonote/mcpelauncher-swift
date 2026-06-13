@@ -9,6 +9,7 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
         static let skip = NSTouchBarItem.Identifier("launcher.skip")
         static let primary = NSTouchBarItem.Identifier("launcher.primary")
         static let signIn = NSTouchBarItem.Identifier("launcher.signIn")
+        static let contentImport = NSTouchBarItem.Identifier("launcher.contentImport")
         static let folder = NSTouchBarItem.Identifier("launcher.folder")
         static let settings = NSTouchBarItem.Identifier("launcher.settings")
     }
@@ -71,6 +72,13 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
             return primaryItem()
         case ItemID.signIn:
             return signInItem()
+        case ItemID.contentImport:
+            return iconButtonItem(
+                identifier: identifier,
+                systemImage: "square.and.arrow.down",
+                label: "Import Minecraft content",
+                action: #selector(importContent)
+            )
         case ItemID.folder:
             return iconButtonItem(
                 identifier: identifier,
@@ -112,6 +120,10 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
 
     @objc func openDataFolder() {
         configuration.onOpenDataFolder()
+    }
+
+    @objc func importContent() {
+        configuration.onImportContent()
     }
 
     private func syncWindowTouchBar() {
@@ -167,6 +179,8 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
             identifiers.append(.fixedSpaceSmall)
         }
         if state.isTrailingActionsVisible {
+            identifiers.append(ItemID.contentImport)
+            identifiers.append(.fixedSpaceSmall)
             identifiers.append(ItemID.folder)
             identifiers.append(.fixedSpaceSmall)
             identifiers.append(ItemID.settings)

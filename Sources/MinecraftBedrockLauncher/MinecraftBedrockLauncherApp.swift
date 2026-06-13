@@ -9,39 +9,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let openExistingInstanceNotification = Notification.Name(
         "local.minecraft.bedrock.swiftlauncher.openExistingInstance"
     )
+    nonisolated private static let openedContentPathsKey = "openedContentPaths"
 
     private var updaterController: SPUStandardUpdaterController?
     private let instanceLock = LauncherSingleInstanceLock()
     private var openExistingInstanceObserver: NSObjectProtocol?
+    private var secondaryTerminationTask: Task<Void, Never>?
+    private var secondaryReceivedOpenURLs = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         StartupLaunchModifiers.capture()
 
         guard instanceLock.acquire() else {
-            DistributedNotificationCenter.default().postNotificationName(
-                Self.openExistingInstanceNotification,
-                object: nil,
-                userInfo: nil,
-                deliverImmediately: true
-            )
-            NSApp.terminate(nil)
+            LauncherProcessRole.isSecondaryInstance = true
+            StartupWindowVisibility.shared.hideUntilStartupCompletes()
             return
         }
 
-        openExistingInstanceObserver = DistributedNotificationCenter.default().addObserver(
-            forName: Self.openExistingInstanceNotification,
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleOpenExistingInstanceNotification(_:)),
+            name: Self.openExistingInstanceNotification,
             object: nil,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in
-                StartupWindowVisibility.shared.revealLauncherWindow()
-            }
-        }
+            suspensionBehavior: .deliverImmediately
+        )
+        openExistingInstanceObserver = self
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         LauncherPreferences.registerDefaults()
         StartupWindowVisibility.shared.hideUntilStartupCompletes()
+
+        guard !LauncherProcessRole.isSecondaryInstance else {
+            scheduleSecondaryRevealFallback()
+            return
+        }
 
         guard AppUpdateConfiguration.isEnabled else {
             return
@@ -66,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        secondaryTerminationTask?.cancel()
         ChildProcessRegistry.shared.terminateAll()
         if let openExistingInstanceObserver {
             DistributedNotificationCenter.default().removeObserver(openExistingInstanceObserver)
@@ -73,9 +76,94 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         instanceLock.release()
     }
 
+    func application(_ sender: NSApplication, open urls: [URL]) {
+        guard !LauncherProcessRole.isSecondaryInstance else {
+            secondaryReceivedOpenURLs = true
+            postOpenExistingInstanceNotification(contentURLs: urls)
+            scheduleSecondaryTermination()
+            return
+        }
+        ContentImportOpenFileQueue.shared.append(urls)
+        StartupWindowVisibility.shared.revealLauncherWindow()
+    }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        handleOpenedContentURLs([URL(fileURLWithPath: filename)])
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        handleOpenedContentURLs(filenames.map(URL.init(fileURLWithPath:)))
+        sender.reply(toOpenOrPrint: .success)
+    }
+
     @objc func checkForUpdates(_ sender: Any?) {
         updaterController?.checkForUpdates(sender)
     }
+
+    @objc private func handleOpenExistingInstanceNotification(_ notification: Notification) {
+        let openedContentURLs = Self.contentURLs(from: notification.userInfo)
+        Task { @MainActor in
+            if let urls = openedContentURLs {
+                ContentImportOpenFileQueue.shared.append(urls)
+            }
+            StartupWindowVisibility.shared.revealLauncherWindow()
+        }
+    }
+
+    private func handleOpenedContentURLs(_ urls: [URL]) {
+        guard !LauncherProcessRole.isSecondaryInstance else {
+            secondaryReceivedOpenURLs = true
+            postOpenExistingInstanceNotification(contentURLs: urls)
+            scheduleSecondaryTermination()
+            return
+        }
+        ContentImportOpenFileQueue.shared.append(urls)
+        StartupWindowVisibility.shared.revealLauncherWindow()
+    }
+
+    private func postOpenExistingInstanceNotification(contentURLs urls: [URL] = []) {
+        let paths = urls.filter(\.isFileURL).map(\.path)
+        let userInfo = paths.isEmpty ? nil : [Self.openedContentPathsKey: paths]
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.openExistingInstanceNotification,
+            object: nil,
+            userInfo: userInfo,
+            options: [.deliverImmediately]
+        )
+    }
+
+    nonisolated private static func contentURLs(from userInfo: [AnyHashable: Any]?) -> [URL]? {
+        guard let paths = userInfo?[openedContentPathsKey] as? [String] else {
+            return nil
+        }
+        let urls = paths.map(URL.init(fileURLWithPath:))
+        return urls.isEmpty ? nil : urls
+    }
+
+    private func scheduleSecondaryRevealFallback() {
+        secondaryTerminationTask?.cancel()
+        secondaryTerminationTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if !secondaryReceivedOpenURLs {
+                postOpenExistingInstanceNotification()
+            }
+            NSApp.terminate(nil)
+        }
+    }
+
+    private func scheduleSecondaryTermination() {
+        secondaryTerminationTask?.cancel()
+        secondaryTerminationTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            NSApp.terminate(nil)
+        }
+    }
+}
+
+@MainActor
+enum LauncherProcessRole {
+    static var isSecondaryInstance = false
 }
 
 private final class LauncherSingleInstanceLock {
@@ -259,7 +347,7 @@ struct MinecraftBedrockLauncherApp: App {
                 Button {
                     Task { await model.playSelected(captureLog: true) }
                 } label: {
-                    Label("Play & Log", systemImage: "doc.text")
+                    Text("Play & Log")
                 }
                 .disabled(!canPlayFromGameMenu)
 
@@ -268,7 +356,13 @@ struct MinecraftBedrockLauncherApp: App {
                 Button {
                     NSWorkspace.shared.open(model.dataFolderURL)
                 } label: {
-                    Label("Open Data Folder", systemImage: "folder")
+                    Text("Open Data Folder")
+                }
+
+                Button {
+                    ContentImportOpenFileQueue.shared.requestOpenPanel()
+                } label: {
+                    Label("Import Minecraft Content...", systemImage: "square.and.arrow.down")
                 }
             }
         }
@@ -288,8 +382,6 @@ struct MinecraftBedrockLauncherApp: App {
     private var canPlayFromGameMenu: Bool {
         model.canUseSelectedVersion
             && model.isRuntimeReady
-            && !model.isGooglePlayBusy
-            && !model.isRuntimeBusy
-            && !model.isLaunchingGame
+            && !model.isGameLaunchBlocked
     }
 }

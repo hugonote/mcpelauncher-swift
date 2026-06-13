@@ -12,6 +12,12 @@ struct ContentView: View {
     @State private var isPresentingRunningGameWarning = false
     @State var window: NSWindow?
     @State var pendingQuickLaunch = false
+    @State var contentImportPanelDelegate: ContentImportOpenPanelDelegate?
+    @State var contentImportDropPreview: ContentImportDropPreview?
+    @State var contentImportResultTitle = ""
+    @State var contentImportResultMessage = ""
+    @State var isShowingContentImportResult = false
+    @State var isProcessingQueuedContentImport = false
     @Environment(\.openSettings) var openSettings
     @Environment(\.accessibilityReduceMotion) var reduceMotion
 
@@ -33,18 +39,21 @@ struct ContentView: View {
                     actionSlot
                 }
                 Spacer(minLength: 0)
-                if !shouldHideChrome {
-                    if model.isQuickLaunchActive {
-                        quickLaunchHint
+                if !shouldHideChrome && !isContentDropTargeted {
+                    VStack(spacing: 18) {
+                        if model.isQuickLaunchActive {
+                            quickLaunchHint
+                        }
+                        statusBar
                     }
-                    statusBar
+                    .transition(.opacity)
                 }
             }
             .padding(.top, 20)
             .padding(.bottom, bottomContentPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if !shouldHideChrome {
+            if !shouldHideChrome && !isContentDropTargeted {
                 VStack {
                     accountBar
                     Spacer()
@@ -53,8 +62,11 @@ struct ContentView: View {
                 .padding(.leading, 16)
                 .padding(.trailing, 16)
                 .ignoresSafeArea(.container, edges: .top)
+                .transition(.opacity)
             }
         }
+        .animation(contentDropStateAnimation, value: isContentDropTargeted)
+        .background(contentImportDropTarget)
         .sheet(isPresented: $model.showingLogin) {
             GoogleLoginSheet(model: model)
         }
@@ -65,6 +77,11 @@ struct ContentView: View {
             }
         } message: {
             Text("You will need to sign in again before downloading Minecraft updates.")
+        }
+        .alert(contentImportResultTitle, isPresented: $isShowingContentImportResult) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(contentImportResultMessage)
         }
         .background(WindowConfigurator(window: $window, isVisible: isStartupComplete))
         .background(
@@ -84,14 +101,31 @@ struct ContentView: View {
                 presentRunningGameWarning()
             }
         }
+        .onChange(of: isContentDropTargeted) { _, isTargeted in
+            if isTargeted {
+                isShowingContentImportResult = false
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ContentImportOpenFileQueue.filesOpenedNotification)) { _ in
+            importQueuedContentFiles()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ContentImportOpenFileQueue.openPanelRequestedNotification)) { _ in
+            presentContentImportPanel()
+        }
         .onDisappear {
             DockProgressController.shared.clear()
         }
         .task(id: window != nil) {
+            guard !LauncherProcessRole.isSecondaryInstance else {
+                return
+            }
             guard let window else {
                 return
             }
-            let shouldUseQuickLaunch = LauncherPreferences.quickLaunch && !StartupLaunchModifiers.didHoldOption
+            let hasPendingContentImport = ContentImportOpenFileQueue.shared.hasPendingURLs
+            let shouldUseQuickLaunch = LauncherPreferences.quickLaunch
+                && !StartupLaunchModifiers.didHoldOption
+                && !hasPendingContentImport
             await model.start()
             if shouldUseQuickLaunch && model.credentialAccessDenied && model.selectedVersion != nil {
                 pendingQuickLaunch = true
@@ -101,6 +135,7 @@ struct ContentView: View {
             }
             isStartupComplete = true
             StartupWindowVisibility.shared.reveal(window)
+            importQueuedContentFiles()
             await Task.yield()
             if model.isQuickLaunchActive {
                 guard !StartupLaunchModifiers.isOptionPressed else {

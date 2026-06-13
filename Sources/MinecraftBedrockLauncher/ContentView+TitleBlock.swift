@@ -4,6 +4,20 @@ import SwiftUI
 
 extension ContentView {
     var titleBlock: some View {
+        ZStack {
+            if isContentDropTargeted {
+                contentImportTitleBlock
+                    .transition(contentDropTitleTransition)
+            } else {
+                launcherTitleBlock
+                    .transition(contentDropTitleTransition)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .animation(contentDropStateAnimation, value: isContentDropTargeted)
+    }
+
+    private var launcherTitleBlock: some View {
         VStack(spacing: 10) {
             titleIcon
                 .scaleEffect(isTitleIconVisible || reduceMotion ? 1 : 0.72)
@@ -23,6 +37,24 @@ extension ContentView {
                 Text(titleText)
                     .font(.title2.weight(.semibold))
                 versionLine
+            }
+        }
+    }
+
+    private var contentImportTitleBlock: some View {
+        VStack(spacing: 10) {
+            DrawOnSymbolView(systemName: "square.and.arrow.down", size: 44)
+                .frame(width: 60, height: 60)
+                .accessibilityHidden(true)
+
+            VStack(spacing: 3) {
+                Text("Import Minecraft Content")
+                    .font(.title2.weight(.semibold))
+                Text(contentImportDropPreview?.releaseText ?? "Release to import Minecraft content")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
             }
         }
     }
@@ -129,7 +161,7 @@ extension ContentView {
                     .frame(width: 56, height: 56)
             }
 
-            if let titleIconBadge {
+            if let titleIconBadge, !isContentDropTargeted {
                 TitleIconBadgeView(kind: titleIconBadge)
                     .offset(x: 3, y: 2)
                     .transition(.scale(scale: 0.72).combined(with: .opacity))

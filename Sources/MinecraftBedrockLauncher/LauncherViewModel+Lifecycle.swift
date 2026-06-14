@@ -66,6 +66,14 @@ extension LauncherViewModel {
         isQuickLaunchActive = false
     }
 
+    func waitForLauncherUpdateCheckBeforeQuickLaunch() async -> Bool {
+        isCheckingLauncherUpdates = true
+        defer {
+            isCheckingLauncherUpdates = false
+        }
+        return await LauncherUpdateCheckGate.shared.allowsQuickLaunchAfterLauncherUpdateCheck()
+    }
+
     func load(startsAutomaticRuntimeUpdate: Bool = true) async {
         do {
             try paths.ensureDirectories()

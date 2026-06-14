@@ -39,6 +39,8 @@ extension ContentView {
             }
         } else if model.isRuntimeBusy {
             runtimeProgress
+        } else if model.isCheckingLauncherUpdates {
+            inlineProgressText(primary: "Checking for updates")
         }
     }
 
@@ -171,6 +173,9 @@ extension ContentView {
             return true
         }
         if model.isImportingContent {
+            return true
+        }
+        if model.isCheckingLauncherUpdates {
             return true
         }
         return model.isRuntimeBusy

@@ -67,7 +67,7 @@ extension ContentView {
         if model.updateWarningText != nil {
             return .orange
         }
-        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent {
+        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent || model.isCheckingLauncherUpdates {
             return .orange
         }
         if isMinecraftUpdateAvailable {
@@ -94,6 +94,9 @@ extension ContentView {
         }
         if model.isGooglePlayBusy || model.isRuntimeBusy {
             return "Working"
+        }
+        if model.isCheckingLauncherUpdates {
+            return "Checking"
         }
         if model.downloadState.phase == .failed {
             return "Download failed"

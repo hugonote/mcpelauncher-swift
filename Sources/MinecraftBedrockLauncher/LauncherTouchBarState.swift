@@ -137,6 +137,9 @@ struct LauncherTouchBarState {
         if model.isBlockingNetworkUnavailable {
             return true
         }
+        if model.isCheckingLauncherUpdates {
+            return true
+        }
 
         switch model.downloadState.phase {
         case .authenticating, .fetchingLatest, .downloading, .extracting, .preparingFirstLaunch:
@@ -209,6 +212,9 @@ struct LauncherTouchBarState {
                 )
             }
             return ProgressInfo()
+        }
+        if model.isCheckingLauncherUpdates {
+            return ProgressInfo(detailText: "Checking")
         }
         if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent {
             return ProgressInfo(detailText: busyText(model))
@@ -291,7 +297,7 @@ struct LauncherTouchBarState {
         if model.updateWarningText != nil {
             return .systemOrange
         }
-        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent {
+        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent || model.isCheckingLauncherUpdates {
             return .systemOrange
         }
         if LauncherTouchBarRules.isMinecraftUpdateAvailable(model) {
@@ -319,6 +325,9 @@ struct LauncherTouchBarState {
         }
         if model.isGooglePlayBusy || model.isRuntimeBusy {
             return "Working"
+        }
+        if model.isCheckingLauncherUpdates {
+            return "Checking"
         }
         if model.downloadState.phase == .failed {
             return "Download failed"

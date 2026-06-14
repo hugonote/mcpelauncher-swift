@@ -48,14 +48,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard AppUpdateConfiguration.isEnabled else {
             return
         }
+        let updateCheckGate = LauncherUpdateCheckGate.shared
         let controller = SPUStandardUpdaterController(
             startingUpdater: false,
-            updaterDelegate: nil,
+            updaterDelegate: updateCheckGate,
             userDriverDelegate: nil
         )
-        controller.updater.automaticallyChecksForUpdates = LauncherPreferences.automaticallyCheckLauncherUpdates
+        let automaticallyChecksForLauncherUpdates = LauncherPreferences.automaticallyCheckLauncherUpdates
+        controller.updater.automaticallyChecksForUpdates = automaticallyChecksForLauncherUpdates
         updaterController = controller
         controller.startUpdater()
+        if shouldForceLauncherUpdateCheckDuringQuickLaunch(controller.updater) {
+            updateCheckGate.startQuickLaunchCheck(updater: controller.updater)
+        }
+    }
+
+    private func shouldForceLauncherUpdateCheckDuringQuickLaunch(_ updater: SPUUpdater) -> Bool {
+        guard updater.automaticallyChecksForUpdates,
+              LauncherPreferences.quickLaunch,
+              !StartupLaunchModifiers.didHoldOption else {
+            return false
+        }
+        guard let lastUpdateCheckDate = updater.lastUpdateCheckDate else {
+            return true
+        }
+        return Date().timeIntervalSince(lastUpdateCheckDate) >= updater.updateCheckInterval
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -294,6 +311,111 @@ enum AppUpdateConfiguration {
         }
         return !feedURL.isEmpty && !publicKey.isEmpty
     }
+}
+
+@MainActor
+final class LauncherUpdateCheckGate: NSObject, SPUUpdaterDelegate {
+    static let shared = LauncherUpdateCheckGate()
+
+    private enum QuickLaunchCheckState {
+        case idle
+        case checking
+        case updateFound
+        case finished
+    }
+
+    private var quickLaunchCheckState = QuickLaunchCheckState.idle
+    private var pendingContinuations: [CheckedContinuation<Bool, Never>] = []
+    private var shouldShowFoundUpdate = false
+    private weak var quickLaunchUpdater: SPUUpdater?
+
+    func startQuickLaunchCheck(updater: SPUUpdater) {
+        guard case .idle = quickLaunchCheckState else {
+            return
+        }
+        quickLaunchUpdater = updater
+        quickLaunchCheckState = .checking
+        updater.checkForUpdateInformation()
+    }
+
+    func allowsQuickLaunchAfterLauncherUpdateCheck() async -> Bool {
+        switch quickLaunchCheckState {
+        case .idle, .finished:
+            return true
+        case .updateFound:
+            return false
+        case .checking:
+            return await withCheckedContinuation { continuation in
+                pendingContinuations.append(continuation)
+            }
+        }
+    }
+
+    @objc(updater:didFindValidUpdate:)
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        guard updater === quickLaunchUpdater,
+              case .checking = quickLaunchCheckState else {
+            return
+        }
+        shouldShowFoundUpdate = true
+        finishQuickLaunchCheck(allowsQuickLaunch: false)
+    }
+
+    @objc(updaterDidNotFindUpdate:)
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        guard updater === quickLaunchUpdater,
+              case .checking = quickLaunchCheckState else {
+            return
+        }
+        finishQuickLaunchCheck(allowsQuickLaunch: true)
+    }
+
+    @objc(updaterDidNotFindUpdate:error:)
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: any Error) {
+        guard updater === quickLaunchUpdater,
+              case .checking = quickLaunchCheckState else {
+            return
+        }
+        finishQuickLaunchCheck(allowsQuickLaunch: true)
+    }
+
+    @objc(updater:didAbortWithError:)
+    func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
+        guard updater === quickLaunchUpdater,
+              case .checking = quickLaunchCheckState else {
+            return
+        }
+        finishQuickLaunchCheck(allowsQuickLaunch: true)
+    }
+
+    @objc(updater:didFinishUpdateCycleForUpdateCheck:error:)
+    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
+        guard updater === quickLaunchUpdater,
+              updateCheck == .updateInformation else {
+            return
+        }
+        if shouldShowFoundUpdate {
+            shouldShowFoundUpdate = false
+            updater.checkForUpdates()
+            return
+        }
+        guard case .checking = quickLaunchCheckState else {
+            return
+        }
+        finishQuickLaunchCheck(allowsQuickLaunch: true)
+    }
+
+    private func finishQuickLaunchCheck(allowsQuickLaunch: Bool) {
+        if allowsQuickLaunch {
+            quickLaunchCheckState = .finished
+        } else {
+            quickLaunchCheckState = .updateFound
+        }
+        let continuations = pendingContinuations
+        pendingContinuations.removeAll()
+        continuations.forEach { $0.resume(returning: allowsQuickLaunch) }
+    }
+
 }
 
 @main

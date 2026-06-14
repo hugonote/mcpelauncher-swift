@@ -139,12 +139,11 @@ public struct RuntimeLauncher: @unchecked Sendable {
            fileManager.isExecutableFile(atPath: clientWrapperExecutableURL.path) {
             let clientAppBundle = try prepareClientAppBundle(
                 runtimePath: runtimePath,
-                clientExecutableURL: command.executableURL,
                 clientWrapperExecutableURL: clientWrapperExecutableURL,
                 iconURL: clientWrapperIconURL
             )
             var environment = command.environment
-            environment[RuntimeClientWrapperEnvironment.executableKey] = clientAppBundle.clientExecutableURL.path
+            environment[RuntimeClientWrapperEnvironment.executableKey] = command.executableURL.path
             environment[RuntimeClientWrapperEnvironment.workingDirectoryKey] = command.currentDirectoryURL.path
             if capturesProcessOutput, let logURL {
                 environment[RuntimeClientWrapperEnvironment.outputLogKey] = logURL.path
@@ -459,7 +458,6 @@ public struct RuntimeLauncher: @unchecked Sendable {
 
     private func prepareClientAppBundle(
         runtimePath: URL,
-        clientExecutableURL: URL,
         clientWrapperExecutableURL: URL,
         iconURL: URL?
     ) throws -> ClientAppBundle {
@@ -473,10 +471,6 @@ public struct RuntimeLauncher: @unchecked Sendable {
         let wrapperDestinationURL = macOSURL.appendingPathComponent(Self.clientWrapperExecutableName, isDirectory: false)
         try copyItemReplacingExisting(from: clientWrapperExecutableURL, to: wrapperDestinationURL)
         try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: wrapperDestinationURL.path)
-
-        let clientDestinationURL = macOSURL.appendingPathComponent(clientExecutableURL.lastPathComponent, isDirectory: false)
-        try copyItemReplacingExisting(from: clientExecutableURL, to: clientDestinationURL)
-        try fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: clientDestinationURL.path)
 
         let runtimeFrameworksURL = runtimePath.appendingPathComponent("Frameworks", isDirectory: true)
         if fileManager.fileExists(atPath: runtimeFrameworksURL.path) {
@@ -513,7 +507,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         ]
         let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try data.write(to: contentsURL.appendingPathComponent("Info.plist", isDirectory: false), options: .atomic)
-        return ClientAppBundle(appURL: appURL, clientExecutableURL: clientDestinationURL)
+        return ClientAppBundle(appURL: appURL)
     }
 
     private func copyItemReplacingExisting(from sourceURL: URL, to destinationURL: URL) throws {
@@ -659,7 +653,6 @@ private struct LaunchCommand {
 
 private struct ClientAppBundle {
     var appURL: URL
-    var clientExecutableURL: URL
 }
 
 enum RuntimeClientWrapperEnvironment {

@@ -154,10 +154,16 @@ struct ContentView: View {
         await Task.yield()
         guard model.isQuickLaunchActive,
               model.canStartQuickLaunch,
-              model.isRuntimeReady,
+              model.runtimePathForReadyRuntime() != nil,
               !StartupLaunchModifiers.isOptionPressed else {
             model.finishQuickLaunch()
             return
+        }
+        if AppUpdateConfiguration.isEnabled && LauncherPreferences.automaticallyCheckLauncherUpdates {
+            guard await model.waitForLauncherUpdateCheckBeforeQuickLaunch() else {
+                model.finishQuickLaunch()
+                return
+            }
         }
 
         guard await model.installAutomaticGameUpdateIfNeeded() else {

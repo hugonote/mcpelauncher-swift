@@ -23,6 +23,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var selectedVersionWarning: String?
     @Published var isLaunchingGame = false
     @Published var isQuickLaunchActive = false
+    @Published var isCheckingLauncherUpdates = false
     @Published var showingLogin = false
     @Published var isShowingRunningGameWarning = false
     @Published var canSkipRuntimeUpdateCheck = false
@@ -73,7 +74,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     var isGameLaunchBlocked: Bool {
-        isGooglePlayBusy || isRuntimeBusy || isLaunchingGame || isImportingContent
+        isGooglePlayBusy || isRuntimeBusy || isLaunchingGame || isImportingContent || isCheckingLauncherUpdates
     }
 
     var isRuntimeReady: Bool {

@@ -10,6 +10,10 @@ extension ContentView {
             } else {
                 inlineProgressText(primary: model.importingContentDescription?.importingText ?? "Importing Minecraft content")
             }
+        } else if isProcessingQueuedContentImport {
+            inlineProgressText(primary: "Importing Minecraft content")
+        } else if hasQueuedOrActiveContentImport {
+            inlineProgressText(primary: "Preparing Minecraft content import")
         } else if model.canSkipRuntimeUpdateCheck {
             runtimeProgress
         } else if isShowingDownloadProgress {
@@ -170,6 +174,12 @@ extension ContentView {
             return true
         }
         if isShowingDownloadProgress {
+            return true
+        }
+        if isProcessingQueuedContentImport {
+            return true
+        }
+        if hasQueuedOrActiveContentImport {
             return true
         }
         if model.isImportingContent {

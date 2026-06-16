@@ -20,7 +20,7 @@ extension ContentView {
 
             Button {
                 Task {
-                    let wasQuickLaunch = pendingQuickLaunch
+                    let wasQuickLaunch = pendingQuickLaunch && !hasQueuedOrActiveContentImport
                     pendingQuickLaunch = false
                     await model.retryStoredCredentialAccess(forQuickLaunch: wasQuickLaunch)
                     if wasQuickLaunch {

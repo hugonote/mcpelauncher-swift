@@ -67,7 +67,7 @@ extension ContentView {
         if model.updateWarningText != nil {
             return .orange
         }
-        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent || model.isCheckingLauncherUpdates {
+        if model.isGooglePlayBusy || model.isRuntimeBusy || isProcessingQueuedContentImport || model.isImportingContent || model.isCheckingLauncherUpdates {
             return .orange
         }
         if isMinecraftUpdateAvailable {
@@ -89,7 +89,7 @@ extension ContentView {
         if model.isRuntimeBusy && isRuntimeUpdateWork {
             return "Runtime update"
         }
-        if model.isImportingContent {
+        if isProcessingQueuedContentImport || model.isImportingContent {
             return "Importing"
         }
         if model.isGooglePlayBusy || model.isRuntimeBusy {

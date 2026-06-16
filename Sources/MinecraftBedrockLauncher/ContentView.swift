@@ -83,7 +83,7 @@ struct ContentView: View {
         } message: {
             Text(contentImportResultMessage)
         }
-        .background(WindowConfigurator(window: $window, isVisible: isStartupComplete))
+        .background(WindowConfigurator(window: $window, isVisible: shouldShowLauncherWindow))
         .background(
             QuickLaunchOptionMonitor(isActive: model.isQuickLaunchActive) {
                 model.finishQuickLaunch()
@@ -107,6 +107,8 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: ContentImportOpenFileQueue.filesOpenedNotification)) { _ in
+            cancelQuickLaunchForContentImportIfNeeded()
+            revealLauncherForContentImportIfNeeded()
             importQueuedContentFiles()
         }
         .onReceive(NotificationCenter.default.publisher(for: ContentImportOpenFileQueue.openPanelRequestedNotification)) { _ in
@@ -122,10 +124,10 @@ struct ContentView: View {
             guard let window else {
                 return
             }
-            let hasPendingContentImport = ContentImportOpenFileQueue.shared.hasPendingURLs
-            let shouldUseQuickLaunch = LauncherPreferences.quickLaunch
-                && !StartupLaunchModifiers.didHoldOption
-                && !hasPendingContentImport
+            if hasQueuedOrActiveContentImport {
+                revealLauncherForContentImportIfNeeded()
+                await Task.yield()
+            }
             await model.start()
             if shouldUseQuickLaunch && model.credentialAccessDenied && model.selectedVersion != nil {
                 pendingQuickLaunch = true
@@ -135,6 +137,9 @@ struct ContentView: View {
             }
             isStartupComplete = true
             StartupWindowVisibility.shared.reveal(window)
+            if hasQueuedOrActiveContentImport {
+                cancelQuickLaunchForContentImportIfNeeded()
+            }
             importQueuedContentFiles()
             await Task.yield()
             if model.isQuickLaunchActive {
@@ -154,6 +159,7 @@ struct ContentView: View {
         await Task.yield()
         guard model.isQuickLaunchActive,
               model.canStartQuickLaunch,
+              !hasQueuedOrActiveContentImport,
               model.runtimePathForReadyRuntime() != nil,
               !StartupLaunchModifiers.isOptionPressed else {
             model.finishQuickLaunch()
@@ -175,6 +181,7 @@ struct ContentView: View {
         await Task.yield()
         guard model.isQuickLaunchActive,
               model.canQuickLaunchSelectedVersion,
+              !hasQueuedOrActiveContentImport,
               !StartupLaunchModifiers.isOptionPressed else {
             model.finishQuickLaunch()
             return
@@ -185,6 +192,46 @@ struct ContentView: View {
             model.finishQuickLaunch()
         }
         revealLauncherAfterFailedQuickLaunchIfNeeded()
+    }
+
+    var shouldUseQuickLaunch: Bool {
+        LauncherPreferences.quickLaunch
+            && !StartupLaunchModifiers.didHoldOption
+            && !hasQueuedOrActiveContentImport
+    }
+
+    var shouldShowLauncherWindow: Bool {
+        isStartupComplete || hasQueuedOrActiveContentImport
+    }
+
+    var hasQueuedOrActiveContentImport: Bool {
+        ContentImportOpenFileQueue.shared.hasPendingURLs
+            || isProcessingQueuedContentImport
+            || model.isImportingContent
+    }
+
+    func cancelQuickLaunchForContentImportIfNeeded() {
+        guard pendingQuickLaunch || model.isQuickLaunchActive else {
+            return
+        }
+        pendingQuickLaunch = false
+        model.finishQuickLaunch()
+    }
+
+    func revealLauncherForContentImportIfNeeded() {
+        guard hasQueuedOrActiveContentImport || isProcessingQueuedContentImport else {
+            return
+        }
+        isStartupComplete = true
+        revealLauncherWindow()
+    }
+
+    func revealLauncherWindow() {
+        if let window {
+            StartupWindowVisibility.shared.reveal(window)
+        } else {
+            StartupWindowVisibility.shared.revealLauncherWindow()
+        }
     }
 
     private func updateDockProgress() {

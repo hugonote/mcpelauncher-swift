@@ -122,12 +122,18 @@ extension ContentView {
 
     func importQueuedContentFiles() {
         if appendQueuedContentFilesToActiveImport() {
+            revealLauncherForContentImportIfNeeded()
+            return
+        }
+        guard ContentImportOpenFileQueue.shared.hasPendingURLs else {
             return
         }
         guard !isProcessingQueuedContentImport else {
             return
         }
+        cancelQuickLaunchForContentImportIfNeeded()
         isProcessingQueuedContentImport = true
+        revealLauncherForContentImportIfNeeded()
         Task {
             await processQueuedContentImports()
         }
@@ -258,7 +264,9 @@ extension ContentView {
 
     @MainActor
     private func processQueuedContentImports() async {
+        revealLauncherForContentImportIfNeeded()
         try? await Task.sleep(nanoseconds: 150_000_000)
+        revealLauncherForContentImportIfNeeded()
         let urls = ContentImportOpenFileQueue.shared.takePendingURLs()
         if !urls.isEmpty {
             await showContentImportResult(for: urls)
@@ -271,6 +279,8 @@ extension ContentView {
     }
 
     private func showContentImportAlert(title: String, message: String) {
+        isStartupComplete = true
+        revealLauncherWindow()
         contentImportResultTitle = title
         contentImportResultMessage = message
         isShowingContentImportResult = true

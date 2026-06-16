@@ -38,11 +38,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         LauncherPreferences.registerDefaults()
-        StartupWindowVisibility.shared.hideUntilStartupCompletes()
 
         guard !LauncherProcessRole.isSecondaryInstance else {
+            StartupWindowVisibility.shared.hideUntilStartupCompletes()
             scheduleSecondaryRevealFallback()
             return
+        }
+
+        if ContentImportOpenFileQueue.shared.hasPendingURLs {
+            StartupWindowVisibility.shared.revealLauncherWindow()
+        } else {
+            StartupWindowVisibility.shared.hideUntilStartupCompletes()
         }
 
         guard AppUpdateConfiguration.isEnabled else {

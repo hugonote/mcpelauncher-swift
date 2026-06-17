@@ -150,7 +150,7 @@ extension LauncherViewModel {
         !FileManager.default.fileExists(atPath: firstLaunchTokenURL(dataPath: dataPath).path)
     }
 
-    private func firstLaunchTokenURL(dataPath: URL) -> URL {
+    func firstLaunchTokenURL(dataPath: URL) -> URL {
         dataPath.appendingPathComponent("pass.token", isDirectory: false)
     }
 

@@ -234,6 +234,7 @@ extension LauncherViewModel {
             let dataPath = paths.minecraftDataURL
             let cachePath = paths.minecraftCacheURL
             try applyRuntimeClientPreferences(dataPath: dataPath)
+            try? FileManager.default.removeItem(at: firstLaunchTokenURL(dataPath: dataPath))
             try await prepareFirstLaunchUntilReady(
                 launcher: RuntimeLauncher(),
                 runtimePath: runtimePath,

@@ -43,6 +43,7 @@ extension ContentView {
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
+        .frame(height: 18)
     }
 
     var quickLaunchHint: some View {
@@ -51,9 +52,8 @@ extension ContentView {
             .foregroundStyle(.secondary)
             .lineLimit(1)
             .padding(.horizontal, 10)
-            .frame(height: 24)
+            .frame(height: 18)
             .frame(maxWidth: .infinity)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 7))
             .padding(.horizontal, 16)
     }
 

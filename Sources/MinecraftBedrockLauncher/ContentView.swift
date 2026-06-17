@@ -40,7 +40,7 @@ struct ContentView: View {
                 }
                 Spacer(minLength: 0)
                 if !shouldHideChrome && !isContentDropTargeted {
-                    VStack(spacing: 18) {
+                    VStack(spacing: 6) {
                         if model.isQuickLaunchActive {
                             quickLaunchHint
                         }
@@ -325,7 +325,7 @@ struct ContentView: View {
             return 20
         }
         if model.isQuickLaunchActive {
-            return 10
+            return 4
         }
         if model.isBlockingNetworkUnavailable {
             return 12

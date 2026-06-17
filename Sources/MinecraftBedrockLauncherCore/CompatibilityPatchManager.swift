@@ -97,6 +97,24 @@ public struct CompatibilityPatchManager: @unchecked Sendable {
         installedMetadata()?.newestSupportedVersion
     }
 
+    public func cleanupOldVersions() {
+        let currentVersion = installedMetadata()?.version
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: paths.compatibilityPatchesURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        ) else {
+            return
+        }
+        for item in contents {
+            guard (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
+                  item.lastPathComponent != currentVersion else {
+                continue
+            }
+            try? fileManager.removeItem(at: item)
+        }
+    }
+
     public func resolveLatestPatch() async throws -> CompatibilityPatchRelease {
         let (data, response) = try await URLSession.shared.data(from: Self.defaultModDBURL)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {

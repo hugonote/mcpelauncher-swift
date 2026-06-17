@@ -77,6 +77,8 @@ extension LauncherViewModel {
     func load(startsAutomaticRuntimeUpdate: Bool = true) async {
         do {
             try paths.ensureDirectories()
+            CompatibilityPatchManager(paths: paths, processRunner: processRunner).cleanupOldVersions()
+            try? FileManager.default.removeItem(at: paths.contentImportsURL)
             signOutLegacyCredentialIfNeeded()
             try paths.removeLegacyGooglePlayState()
             try syncRuntimeClientPreferencesFromDisk()

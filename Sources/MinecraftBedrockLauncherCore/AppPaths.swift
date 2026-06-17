@@ -41,6 +41,10 @@ public struct AppPaths: Equatable, Sendable {
         compatibilityPatchesURL.appendingPathComponent("mcpelauncher-updates.json", isDirectory: false)
     }
 
+    public var contentImportsURL: URL {
+        baseURL.appendingPathComponent("ContentImports", isDirectory: true)
+    }
+
     public var minecraftDataURL: URL {
         baseURL.appendingPathComponent("MinecraftData", isDirectory: true)
     }

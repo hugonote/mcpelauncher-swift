@@ -76,8 +76,7 @@ public struct ContentPackImporter: @unchecked Sendable {
         }
 
         try fileManager.createDirectory(at: paths.minecraftMojangURL, withIntermediateDirectories: true)
-        let workURL = paths.baseURL
-            .appendingPathComponent("ContentImports", isDirectory: true)
+        let workURL = paths.contentImportsURL
             .appendingPathComponent(".import-\(UUID().uuidString)", isDirectory: true)
         let extractURL = workURL.appendingPathComponent("extract", isDirectory: true)
         defer { try? fileManager.removeItem(at: workURL) }
@@ -146,8 +145,7 @@ public struct ContentPackImporter: @unchecked Sendable {
         guard let fileType else {
             throw LauncherError.unsupportedContentPack(fileURL)
         }
-        let workURL = paths.baseURL
-            .appendingPathComponent("ContentImports", isDirectory: true)
+        let workURL = paths.contentImportsURL
             .appendingPathComponent(".preflight-\(UUID().uuidString)", isDirectory: true)
         let extractURL = workURL.appendingPathComponent("extract", isDirectory: true)
         defer { try? fileManager.removeItem(at: workURL) }

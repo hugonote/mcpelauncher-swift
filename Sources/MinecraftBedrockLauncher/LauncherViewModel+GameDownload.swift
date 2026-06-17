@@ -74,6 +74,9 @@ extension LauncherViewModel {
         guard selectedVersion != nil else {
             return true
         }
+        if latestVersion == nil {
+            await fetchLatest()
+        }
         guard let latestVersion else {
             return true
         }

@@ -99,6 +99,9 @@ extension LauncherViewModel {
         downloadState = latestVersion.map { DownloadState(versionName: $0.versionName) } ?? DownloadState()
         errorText = nil
         updateWarningText = nil
+        if isQuickLaunchActive {
+            finishQuickLaunch()
+        }
     }
 
     func cancelActiveDownloadWork() {

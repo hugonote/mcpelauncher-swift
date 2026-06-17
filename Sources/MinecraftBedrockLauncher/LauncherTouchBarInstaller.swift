@@ -11,6 +11,7 @@ struct LauncherTouchBarInstaller: View {
             configuration: LauncherTouchBarConfiguration(
                 state: LauncherTouchBarState(model: model),
                 onPrimary: performPrimaryAction,
+                onPlay: playInstalled,
                 onSignIn: showLogin,
                 onCancel: cancelActiveWork,
                 onSkipRuntimeUpdateCheck: skipRuntimeUpdateCheck,
@@ -66,6 +67,12 @@ struct LauncherTouchBarInstaller: View {
             return
         }
         model.startDownloadAndInstallLatest()
+    }
+
+    private func playInstalled() {
+        Task {
+            await model.playSelected(captureLog: false)
+        }
     }
 
     private func cancelActiveWork() {

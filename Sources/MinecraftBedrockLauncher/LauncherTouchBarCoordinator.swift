@@ -8,6 +8,7 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
         static let cancel = NSTouchBarItem.Identifier("launcher.cancel")
         static let skip = NSTouchBarItem.Identifier("launcher.skip")
         static let primary = NSTouchBarItem.Identifier("launcher.primary")
+        static let play = NSTouchBarItem.Identifier("launcher.play")
         static let signIn = NSTouchBarItem.Identifier("launcher.signIn")
         static let contentImport = NSTouchBarItem.Identifier("launcher.contentImport")
         static let folder = NSTouchBarItem.Identifier("launcher.folder")
@@ -70,6 +71,13 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
             return skipItem()
         case ItemID.primary:
             return primaryItem()
+        case ItemID.play:
+            return iconButtonItem(
+                identifier: identifier,
+                systemImage: "play.fill",
+                label: "Play",
+                action: #selector(play)
+            )
         case ItemID.signIn:
             return signInItem()
         case ItemID.contentImport:
@@ -100,6 +108,10 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
 
     @objc func performPrimaryAction() {
         configuration.onPrimary()
+    }
+
+    @objc func play() {
+        configuration.onPlay()
     }
 
     @objc func cancel() {
@@ -163,6 +175,10 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
         identifiers.append(.flexibleSpace)
         if state.isPrimaryVisible {
             identifiers.append(ItemID.primary)
+            if state.isPlaySideVisible {
+                identifiers.append(.fixedSpaceSmall)
+                identifiers.append(ItemID.play)
+            }
             if state.isSignInVisible {
                 identifiers.append(.fixedSpaceSmall)
                 identifiers.append(ItemID.signIn)

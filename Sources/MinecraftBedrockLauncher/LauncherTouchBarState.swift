@@ -5,6 +5,7 @@ import MinecraftBedrockLauncherCore
 struct LauncherTouchBarConfiguration {
     var state: LauncherTouchBarState
     var onPrimary: @MainActor () -> Void
+    var onPlay: @MainActor () -> Void
     var onSignIn: @MainActor () -> Void
     var onCancel: @MainActor () -> Void
     var onSkipRuntimeUpdateCheck: @MainActor () -> Void
@@ -29,6 +30,7 @@ struct LauncherTouchBarState {
     var isSkipVisible: Bool
     var isTrailingActionsVisible: Bool
     var isPrimaryVisible: Bool
+    var isPlaySideVisible: Bool
     var isHidden: Bool
 
     @MainActor
@@ -52,6 +54,7 @@ struct LauncherTouchBarState {
         isSkipVisible = model.canSkipRuntimeUpdateCheck
         isPrimaryVisible = !progressVisible
         isTrailingActionsVisible = Self.areTrailingActionsVisible(model, isProgressVisible: progressVisible)
+        isPlaySideVisible = credentialAccessDenied ? false : Self.isPlaySideVisible(model, isProgressVisible: progressVisible)
         isHidden = model.activeIssue == .bundledHelperMissing
     }
 
@@ -127,6 +130,18 @@ struct LauncherTouchBarState {
             && model.canUseSelectedVersion
             && model.isRuntimeReady
             && !isProgressVisible
+    }
+
+    @MainActor
+    private static func isPlaySideVisible(_ model: LauncherViewModel, isProgressVisible: Bool) -> Bool {
+        guard !isProgressVisible,
+              model.canUseSelectedVersion,
+              model.isRuntimeReady,
+              !LauncherTouchBarRules.needsCredentialRefresh(model),
+              !LauncherTouchBarRules.isPurchaseRequired(model) else {
+            return false
+        }
+        return LauncherTouchBarRules.isMinecraftUpdateAvailable(model) || model.downloadState.phase == .failed
     }
 
     @MainActor

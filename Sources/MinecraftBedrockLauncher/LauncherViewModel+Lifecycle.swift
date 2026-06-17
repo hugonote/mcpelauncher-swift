@@ -79,6 +79,7 @@ extension LauncherViewModel {
             try paths.ensureDirectories()
             CompatibilityPatchManager(paths: paths, processRunner: processRunner).cleanupOldVersions()
             try? FileManager.default.removeItem(at: paths.contentImportsURL)
+            try paths.removeStaleGameInstallDirectories()
             signOutLegacyCredentialIfNeeded()
             try paths.removeLegacyGooglePlayState()
             try syncRuntimeClientPreferencesFromDisk()
@@ -95,6 +96,7 @@ extension LauncherViewModel {
 
     func preloadLocalStateForInitialLayout() throws {
         try paths.ensureDirectories()
+        try paths.removeStaleGameInstallDirectories()
         try syncRuntimeClientPreferencesFromDisk()
         selectedVersion = try registry.load().first
         refreshSelectedVersionCompatibility()

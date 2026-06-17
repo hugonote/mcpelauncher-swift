@@ -72,6 +72,20 @@ public struct AppPaths: Equatable, Sendable {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
+
+    public func removeStaleGameInstallDirectories(fileManager: FileManager = .default) throws {
+        guard fileManager.fileExists(atPath: versionsURL.path) else {
+            return
+        }
+        let installItems = try fileManager.contentsOfDirectory(
+            at: versionsURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        )
+        for item in installItems where item.lastPathComponent.hasPrefix(".install-") {
+            try fileManager.removeItem(at: item)
+        }
+    }
 }
 
 public enum LauncherError: Error, LocalizedError, Equatable {

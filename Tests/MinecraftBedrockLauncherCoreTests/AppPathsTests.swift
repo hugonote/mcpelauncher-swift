@@ -45,4 +45,23 @@ final class AppPathsTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: finskyDirectory.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: paths.legacyGooglePlayStateURL.path))
     }
+
+    func testRemoveStaleGameInstallDirectoriesDeletesHiddenInstallWorkDirectoriesOnly() throws {
+        let temp = try TemporaryDirectory()
+        let paths = AppPaths(baseURL: temp.url.appendingPathComponent("AppData", isDirectory: true))
+        try paths.ensureDirectories()
+
+        let staleInstallURL = paths.versionsURL.appendingPathComponent(".install-broken", isDirectory: true)
+        let installedVersionURL = paths.versionsURL.appendingPathComponent("1.26.20.4", isDirectory: true)
+        let otherHiddenURL = paths.versionsURL.appendingPathComponent(".not-an-install", isDirectory: true)
+        try FileManager.default.createDirectory(at: staleInstallURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: installedVersionURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: otherHiddenURL, withIntermediateDirectories: true)
+
+        try paths.removeStaleGameInstallDirectories()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleInstallURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: installedVersionURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: otherHiddenURL.path))
+    }
 }

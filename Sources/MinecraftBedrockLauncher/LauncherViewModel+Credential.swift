@@ -47,10 +47,10 @@ extension LauncherViewModel {
         }
         await loadStoredCredential()
         if forQuickLaunch && canStartQuickLaunch {
-            await continueStartupForQuickLaunch()
+            startQuickLaunchSession()
         } else {
             if forQuickLaunch {
-                finishQuickLaunch()
+                cancelQuickLaunch()
             }
             await continueStartupAfterWindowReveal()
         }

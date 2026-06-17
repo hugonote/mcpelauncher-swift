@@ -100,7 +100,7 @@ extension LauncherViewModel {
         errorText = nil
         updateWarningText = nil
         if isQuickLaunchActive {
-            finishQuickLaunch()
+            cancelQuickLaunch()
         }
     }
 

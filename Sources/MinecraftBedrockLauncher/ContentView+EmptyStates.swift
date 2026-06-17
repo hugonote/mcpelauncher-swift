@@ -24,7 +24,7 @@ extension ContentView {
                     pendingQuickLaunch = false
                     await model.retryStoredCredentialAccess(forQuickLaunch: wasQuickLaunch)
                     if wasQuickLaunch {
-                        await runQuickLaunchIfReady()
+                        model.startQuickLaunchSession()
                     }
                 }
             } label: {

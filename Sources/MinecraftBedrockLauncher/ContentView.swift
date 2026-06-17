@@ -86,7 +86,7 @@ struct ContentView: View {
         .background(WindowConfigurator(window: $window, isVisible: shouldShowLauncherWindow))
         .background(
             QuickLaunchOptionMonitor(isActive: model.isQuickLaunchActive) {
-                model.finishQuickLaunch()
+                model.cancelQuickLaunch()
             }
         )
         .background(touchBarConfigurator)
@@ -144,54 +144,14 @@ struct ContentView: View {
             await Task.yield()
             if model.isQuickLaunchActive {
                 guard !StartupLaunchModifiers.isOptionPressed else {
-                    model.finishQuickLaunch()
+                    model.cancelQuickLaunch()
                     return
                 }
-                await model.continueStartupForQuickLaunch()
-                await runQuickLaunchIfReady()
+                model.startQuickLaunchSession()
             } else {
                 await model.continueStartupAfterWindowReveal()
             }
         }
-    }
-
-    func runQuickLaunchIfReady() async {
-        await Task.yield()
-        guard model.isQuickLaunchActive,
-              model.canStartQuickLaunch,
-              !hasQueuedOrActiveContentImport,
-              model.runtimePathForReadyRuntime() != nil,
-              !StartupLaunchModifiers.isOptionPressed else {
-            model.finishQuickLaunch()
-            return
-        }
-        if AppUpdateConfiguration.isEnabled && LauncherPreferences.automaticallyCheckLauncherUpdates {
-            guard await model.waitForLauncherUpdateCheckBeforeQuickLaunch() else {
-                model.finishQuickLaunch()
-                return
-            }
-        }
-
-        guard await model.installAutomaticGameUpdateIfNeeded() else {
-            model.finishQuickLaunch()
-            revealLauncherAfterFailedQuickLaunchIfNeeded()
-            return
-        }
-
-        await Task.yield()
-        guard model.isQuickLaunchActive,
-              model.canQuickLaunchSelectedVersion,
-              !hasQueuedOrActiveContentImport,
-              !StartupLaunchModifiers.isOptionPressed else {
-            model.finishQuickLaunch()
-            return
-        }
-
-        await model.playSelected(captureLog: false)
-        if model.isQuickLaunchActive {
-            model.finishQuickLaunch()
-        }
-        revealLauncherAfterFailedQuickLaunchIfNeeded()
     }
 
     var shouldUseQuickLaunch: Bool {
@@ -215,7 +175,7 @@ struct ContentView: View {
             return
         }
         pendingQuickLaunch = false
-        model.finishQuickLaunch()
+        model.cancelQuickLaunch()
     }
 
     func revealLauncherForContentImportIfNeeded() {

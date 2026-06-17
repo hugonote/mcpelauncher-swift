@@ -12,14 +12,14 @@ extension LauncherViewModel {
     }
 
     func continueStartupAfterWindowReveal() async {
-        await continueStartupAfterInitialLoad()
+        await continueStartupAfterInitialLoad(installsAutomaticGameUpdates: true)
     }
 
     func continueStartupForQuickLaunch() async {
-        await continueStartupAfterInitialLoad()
+        await continueStartupAfterInitialLoad(installsAutomaticGameUpdates: false)
     }
 
-    private func continueStartupAfterInitialLoad() async {
+    private func continueStartupAfterInitialLoad(installsAutomaticGameUpdates: Bool) async {
         guard didStart, !didContinueStartupAfterWindowReveal else {
             return
         }
@@ -46,24 +46,141 @@ extension LauncherViewModel {
         guard shouldRunAutomaticGameUpdateCheck() else {
             return
         }
-        await runAutomaticGameUpdateCheck()
+        await runAutomaticGameUpdateCheck(installsAutomaticGameUpdates: installsAutomaticGameUpdates)
     }
 
-    private func runAutomaticGameUpdateCheck() async {
+    private func runAutomaticGameUpdateCheck(installsAutomaticGameUpdates: Bool) async {
         await Task { @MainActor in
             await fetchLatest()
             if LauncherPreferences.canAutomaticallyInstallGameUpdates {
+                guard installsAutomaticGameUpdates else {
+                    return
+                }
                 _ = await installAutomaticGameUpdateIfNeeded()
             }
         }.value
     }
 
     func beginQuickLaunch() {
-        isQuickLaunchActive = true
+        quickLaunchState = .starting
     }
 
     func finishQuickLaunch() {
-        isQuickLaunchActive = false
+        quickLaunchState = .inactive
+        quickLaunchTask = nil
+    }
+
+    func cancelQuickLaunch() {
+        quickLaunchState = .inactive
+        quickLaunchTask?.cancel()
+        quickLaunchTask = nil
+    }
+
+    func startQuickLaunchSession() {
+        guard isQuickLaunchActive, quickLaunchTask == nil else {
+            return
+        }
+        quickLaunchTask = Task { @MainActor [weak self] in
+            await self?.runQuickLaunchSession()
+        }
+    }
+
+    private func setQuickLaunchState(_ state: QuickLaunchState) {
+        guard isQuickLaunchActive else {
+            return
+        }
+        quickLaunchState = state
+    }
+
+    private func runQuickLaunchSession() async {
+        defer {
+            if quickLaunchTask != nil, quickLaunchState != .inactive {
+                quickLaunchTask = nil
+            }
+        }
+
+        guard await waitForQuickLaunchPreconditions(requiresRuntimeReady: false) else {
+            return
+        }
+
+        await continueStartupForQuickLaunch()
+        guard await waitForQuickLaunchPreconditions(requiresRuntimeReady: true) else {
+            return
+        }
+
+        if AppUpdateConfiguration.isEnabled && LauncherPreferences.automaticallyCheckLauncherUpdates {
+            setQuickLaunchState(.waitingForLauncherUpdate)
+            guard await waitForLauncherUpdateCheckBeforeQuickLaunch() else {
+                cancelQuickLaunch()
+                return
+            }
+        }
+
+        setQuickLaunchState(.waitingForGameUpdate)
+        guard await installAutomaticGameUpdateIfNeeded() else {
+            cancelQuickLaunch()
+            return
+        }
+
+        guard await waitForQuickLaunchPreconditions(requiresRuntimeReady: true) else {
+            return
+        }
+        guard canQuickLaunchSelectedVersion else {
+            finishQuickLaunch()
+            return
+        }
+
+        setQuickLaunchState(.launching)
+        await playSelected(captureLog: false)
+        if isQuickLaunchActive {
+            finishQuickLaunch()
+        }
+    }
+
+    private func waitForQuickLaunchPreconditions(requiresRuntimeReady: Bool) async -> Bool {
+        while isQuickLaunchActive {
+            if Task.isCancelled {
+                return false
+            }
+            if StartupLaunchModifiers.isOptionPressed {
+                cancelQuickLaunch()
+                return false
+            }
+            if ContentImportOpenFileQueue.shared.hasPendingURLs || isImportingContent {
+                cancelQuickLaunch()
+                return false
+            }
+            if credentialAccessDenied || credential == nil || selectedVersion == nil {
+                finishQuickLaunch()
+                return false
+            }
+            if isCheckingLauncherUpdates {
+                setQuickLaunchState(.waitingForLauncherUpdate)
+                await sleepBeforeQuickLaunchRetry()
+                continue
+            }
+            if isRuntimeBusy {
+                setQuickLaunchState(.waitingForRuntime)
+                await sleepBeforeQuickLaunchRetry()
+                continue
+            }
+            if requiresRuntimeReady && runtimePathForReadyRuntime() == nil {
+                finishQuickLaunch()
+                return false
+            }
+            if isGooglePlayBusy {
+                setQuickLaunchState(.waitingForGameUpdate)
+                await sleepBeforeQuickLaunchRetry()
+                continue
+            }
+            setQuickLaunchState(.ready)
+            return true
+        }
+        return false
+    }
+
+    private func sleepBeforeQuickLaunchRetry() async {
+        try? await Task.sleep(nanoseconds: 150_000_000)
     }
 
     func waitForLauncherUpdateCheckBeforeQuickLaunch() async -> Bool {

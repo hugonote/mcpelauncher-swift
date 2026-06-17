@@ -4,6 +4,20 @@ import MinecraftBedrockLauncherCore
 import CoreGraphics
 import Network
 
+enum QuickLaunchState: Equatable {
+    case inactive
+    case starting
+    case waitingForRuntime
+    case waitingForLauncherUpdate
+    case waitingForGameUpdate
+    case ready
+    case launching
+
+    var isActive: Bool {
+        self != .inactive
+    }
+}
+
 @MainActor
 final class LauncherViewModel: ObservableObject {
     @Published var credential: GoogleCredential?
@@ -22,7 +36,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var credentialAccessDenied = false
     @Published var selectedVersionWarning: String?
     @Published var isLaunchingGame = false
-    @Published var isQuickLaunchActive = false
+    @Published var quickLaunchState = QuickLaunchState.inactive
     @Published var isCheckingLauncherUpdates = false
     @Published var showingLogin = false
     @Published var isShowingRunningGameWarning = false
@@ -81,6 +95,10 @@ final class LauncherViewModel: ObservableObject {
         runtimeState.phase == .ready
     }
 
+    var isQuickLaunchActive: Bool {
+        quickLaunchState.isActive
+    }
+
     var canUseSelectedVersion: Bool {
         selectedVersion != nil && selectedVersionWarning == nil
     }
@@ -122,6 +140,7 @@ final class LauncherViewModel: ObservableObject {
     var didTryLoadingStoredCredential = false
     var runtimeUpdateTask: Task<Void, Never>?
     var runtimeSkipDelayTask: Task<Void, Never>?
+    var quickLaunchTask: Task<Void, Never>?
     var activeRuntimeUpdateID: UUID?
     var activeGameUpdateCheckID: UUID?
     var shouldSkipNextAutomaticGameUpdateCheck = false

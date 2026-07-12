@@ -1,7 +1,8 @@
 import Darwin
 import Foundation
+import MinecraftBedrockClientWrapperSupport
 
-private let cleanupArgument = "--cleanup-credential-file"
+private let superviseArgument = "--supervise-runtime"
 private let filterOutputArgument = "--filter-output"
 private let executableEnvironmentKey = "MCPELAUNCHER_CLIENT_EXECUTABLE"
 private let workingDirectoryEnvironmentKey = "MCPELAUNCHER_CLIENT_WORKING_DIRECTORY"
@@ -25,58 +26,26 @@ private func removeCredentialFile(at path: String?) {
     try? FileManager.default.removeItem(at: directoryURL)
 }
 
-private func waitForProcessExit(pid: pid_t) {
-    let queue = kqueue()
-    guard queue >= 0 else {
-        waitForProcessExitByPolling(pid: pid)
-        return
-    }
-    defer {
-        close(queue)
-    }
-
-    var event = kevent(
-        ident: UInt(pid),
-        filter: Int16(EVFILT_PROC),
-        flags: UInt16(EV_ADD | EV_ENABLE),
-        fflags: UInt32(NOTE_EXIT),
-        data: 0,
-        udata: nil
-    )
-    let registration = withUnsafePointer(to: &event) { pointer in
-        pointer.withMemoryRebound(to: kevent.self, capacity: 1) { reboundPointer in
-            kevent(queue, reboundPointer, 1, nil, 0, nil)
-        }
-    }
-    guard registration == 0 else {
-        if errno != ESRCH {
-            waitForProcessExitByPolling(pid: pid)
-        }
-        return
-    }
-
-    var exitEvent = kevent()
-    _ = withUnsafeMutablePointer(to: &exitEvent) { pointer in
-        pointer.withMemoryRebound(to: kevent.self, capacity: 1) { reboundPointer in
-            kevent(queue, nil, 0, reboundPointer, 1, nil)
-        }
-    }
-}
-
-private func waitForProcessExitByPolling(pid: pid_t) {
-    while kill(pid, 0) == 0 || errno == EPERM {
-        sleep(1)
-    }
-}
-
-private func runCredentialCleanupHelper(arguments: [String]) -> Never {
-    guard arguments.count == 3,
+private func runRuntimeSupervisor(arguments: [String]) -> Never {
+    guard arguments.count == 5,
           let pid = pid_t(arguments[1]) else {
         exit(64)
     }
+    guard let processGroupID = pid_t(arguments[2]) else {
+        exit(64)
+    }
 
-    waitForProcessExit(pid: pid)
-    removeCredentialFile(at: arguments[2])
+    guard ProcessGroupIsolation.isolateCurrentProcess() else {
+        exit(71)
+    }
+    RuntimeProcessGroupSupervisor().supervise(
+        runtimeProcessID: pid,
+        runtimeProcessGroupID: processGroupID,
+        runtimeExecutablePath: arguments[3],
+        onRuntimeExit: {
+            removeCredentialFile(at: arguments[4])
+        }
+    )
     exit(0)
 }
 
@@ -87,17 +56,20 @@ private func wrapperExecutableURL() -> URL {
     return URL(fileURLWithPath: CommandLine.arguments[0], isDirectory: false)
 }
 
-private func startCredentialCleanupHelper(for credentialFilePath: String?) throws {
-    guard let credentialFilePath, !credentialFilePath.isEmpty else {
-        return
-    }
-
+private func startRuntimeSupervisor(
+    runtimeProcessID: pid_t,
+    runtimeProcessGroupID: pid_t,
+    runtimeExecutablePath: String,
+    credentialFilePath: String?
+) throws {
     let process = Process()
     process.executableURL = wrapperExecutableURL()
     process.arguments = [
-        cleanupArgument,
-        String(getpid()),
-        credentialFilePath
+        superviseArgument,
+        String(runtimeProcessID),
+        String(runtimeProcessGroupID),
+        runtimeExecutablePath,
+        credentialFilePath ?? ""
     ]
     process.environment = [:]
     process.standardInput = FileHandle.nullDevice
@@ -214,8 +186,8 @@ private func redirectOutputToFilter(outputLogPath: String) throws {
 }
 
 let wrapperArguments = Array(CommandLine.arguments.dropFirst())
-if wrapperArguments.first == cleanupArgument {
-    runCredentialCleanupHelper(arguments: wrapperArguments)
+if wrapperArguments.first == superviseArgument {
+    runRuntimeSupervisor(arguments: wrapperArguments)
 }
 if wrapperArguments.first == filterOutputArgument {
     runOutputFilterHelper(arguments: wrapperArguments)
@@ -239,11 +211,19 @@ guard FileManager.default.isExecutableFile(atPath: executablePath) else {
 guard FileManager.default.changeCurrentDirectoryPath(workingDirectoryPath) else {
     failWithCleanup("could not change directory to \(workingDirectoryPath)", 72)
 }
+guard ProcessGroupIsolation.isolateCurrentProcess() else {
+    failWithCleanup("could not isolate runtime process group", 71)
+}
 
 do {
-    try startCredentialCleanupHelper(for: credentialFilePath)
+    try startRuntimeSupervisor(
+        runtimeProcessID: getpid(),
+        runtimeProcessGroupID: getpgrp(),
+        runtimeExecutablePath: executablePath,
+        credentialFilePath: credentialFilePath
+    )
 } catch {
-    failWithCleanup("could not start credential cleanup helper: \(error.localizedDescription)", 74)
+    failWithCleanup("could not start runtime supervisor: \(error.localizedDescription)", 74)
 }
 
 unsetenv(executableEnvironmentKey)

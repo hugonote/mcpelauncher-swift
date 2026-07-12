@@ -55,11 +55,18 @@ let package = Package(
             name: "MinecraftBedrockWebView"
         ),
         .executableTarget(
-            name: "MinecraftBedrockClientWrapper"
+            name: "MinecraftBedrockClientWrapper",
+            dependencies: ["MinecraftBedrockClientWrapperSupport"]
+        ),
+        .target(
+            name: "MinecraftBedrockClientWrapperSupport"
         ),
         .testTarget(
             name: "MinecraftBedrockLauncherCoreTests",
-            dependencies: ["MinecraftBedrockLauncherCore"]
+            dependencies: [
+                "MinecraftBedrockLauncherCore",
+                "MinecraftBedrockClientWrapperSupport"
+            ]
         )
     ]
 )

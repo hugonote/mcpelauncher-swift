@@ -38,13 +38,11 @@ extension LauncherViewModel {
             isDeletingData = true
             defer { isDeletingData = false }
             let dataURL = paths.minecraftDataURL
-            let cacheURL = paths.minecraftCacheURL
             try await runOffMain {
-                for url in [dataURL, cacheURL] where FileManager.default.fileExists(atPath: url.path) {
-                    try FileManager.default.removeItem(at: url)
+                if FileManager.default.fileExists(atPath: dataURL.path) {
+                    try FileManager.default.removeItem(at: dataURL)
                 }
                 try FileManager.default.createDirectory(at: dataURL, withIntermediateDirectories: true)
-                try FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
             }
             errorText = nil
             updateWarningText = nil
@@ -238,7 +236,7 @@ extension LauncherViewModel {
             }
             let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
             let dataPath = paths.minecraftDataURL
-            let cachePath = paths.minecraftCacheURL
+            let cachePath = dataPath
             try applyRuntimeClientPreferences(dataPath: dataPath)
             try? FileManager.default.removeItem(at: firstLaunchTokenURL(dataPath: dataPath))
             try await prepareFirstLaunchUntilReady(

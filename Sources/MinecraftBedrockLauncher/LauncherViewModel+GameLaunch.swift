@@ -43,7 +43,7 @@ extension LauncherViewModel {
             }
             let logURL = captureLog ? launchLogURL(for: selectedVersion) : nil
             let dataPath = paths.minecraftDataURL
-            let cachePath = paths.minecraftCacheURL
+            let cachePath = dataPath
             try applyRuntimeClientPreferences(dataPath: dataPath)
             if shouldWarmUpFirstLaunch(dataPath: dataPath) {
                 try await prepareFirstLaunchUntilReady(

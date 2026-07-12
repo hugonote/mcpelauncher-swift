@@ -55,10 +55,6 @@ public struct AppPaths: Equatable, Sendable {
             .appendingPathComponent("com.mojang", isDirectory: true)
     }
 
-    public var minecraftCacheURL: URL {
-        baseURL.appendingPathComponent("MinecraftCache", isDirectory: true)
-    }
-
     public var logsURL: URL {
         baseURL.appendingPathComponent("Logs", isDirectory: true)
     }
@@ -68,7 +64,7 @@ public struct AppPaths: Equatable, Sendable {
     }
 
     public func ensureDirectories(fileManager: FileManager = .default) throws {
-        for url in [baseURL, downloadsURL, versionsURL, runtimeURL, compatibilityPatchesURL, minecraftDataURL, minecraftCacheURL, logsURL] {
+        for url in [baseURL, downloadsURL, versionsURL, runtimeURL, compatibilityPatchesURL, minecraftDataURL, logsURL] {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }

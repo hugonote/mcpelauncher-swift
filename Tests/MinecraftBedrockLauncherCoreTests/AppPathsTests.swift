@@ -14,6 +14,9 @@ final class AppPathsTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: paths.versionsURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: paths.runtimeURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: paths.logsURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: paths.baseURL.appendingPathComponent("MinecraftCache", isDirectory: true).path
+        ))
         XCTAssertFalse(FileManager.default.fileExists(atPath: paths.legacyGooglePlayStateURL.path))
     }
 

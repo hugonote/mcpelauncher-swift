@@ -407,7 +407,7 @@ final class RuntimeManagerTests: XCTestCase {
         )
         XCTAssertEqual(info["CFBundleExecutable"] as? String, "mcpelauncher-client-wrapper")
         XCTAssertEqual(info["CFBundleIdentifier"] as? String, "local.minecraft.bedrock.swiftlauncher.client")
-        XCTAssertEqual(info["LSApplicationCategoryType"] as? String, "public.app-category.games")
+        XCTAssertNil(info["LSApplicationCategoryType"])
         XCTAssertEqual(info["LSSupportsGameMode"] as? Bool, true)
         XCTAssertEqual(info["GCSupportsGameMode"] as? Bool, true)
 

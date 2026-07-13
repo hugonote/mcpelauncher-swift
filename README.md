@@ -39,6 +39,7 @@ Download the latest DMG from
 
 ```sh
 brew tap hugonote/mcpelauncher-swift
+brew trust hugonote/mcpelauncher-swift
 brew install --cask minecraft-bedrock-launcher
 ```
 

@@ -14,6 +14,24 @@ SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 APP_ICON_DOCUMENT="${APP_ICON_DOCUMENT:-$PACKAGE_DIR/Resources/minecraft-bedrock.icon}"
 APP_ICON_NAME="${APP_ICON_NAME:-${APP_ICON_DOCUMENT:t:r}}"
+
+# SwiftUI macros and Icon Composer's actool are only shipped with full Xcode.
+# Prefer the caller's selection, but recover locally when xcode-select points at
+# the standalone Command Line Tools and an Xcode installation is available.
+if [[ -z "${DEVELOPER_DIR:-}" && "$(xcode-select -p 2>/dev/null || true)" == */CommandLineTools ]]; then
+  xcode_developer_dirs=(
+    /Applications/Xcode.app/Contents/Developer
+    /Applications/Xcode-*.app/Contents/Developer(N)
+  )
+  for xcode_developer_dir in "${xcode_developer_dirs[@]}"; do
+    if [[ -x "$xcode_developer_dir/usr/bin/actool" ]]; then
+      export DEVELOPER_DIR="$xcode_developer_dir"
+      echo "Using Xcode developer directory: $DEVELOPER_DIR" >&2
+      break
+    fi
+  done
+fi
+
 ACTOOL="${ACTOOL:-$(xcrun --find actool 2>/dev/null || true)}"
 MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-14.0}"
 

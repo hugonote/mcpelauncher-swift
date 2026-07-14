@@ -69,6 +69,10 @@ Requirements:
 - Swift 6 toolchain
 - Xcode with `actool` for app icon compilation
 
+The bundle script uses `DEVELOPER_DIR` when it is set. If `xcode-select` points
+at the standalone Command Line Tools, it automatically uses an Xcode app from
+`/Applications` without changing the system-wide developer directory.
+
 Run tests:
 
 ```sh

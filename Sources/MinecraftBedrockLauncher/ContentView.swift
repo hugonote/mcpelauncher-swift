@@ -5,6 +5,7 @@ import AppKit
 
 struct ContentView: View {
     @ObservedObject var model: LauncherViewModel
+    @ObservedObject var appDelegate: AppDelegate
     @State var isShowingSignOutConfirmation = false
     @State var isShowingVersionInfo = false
     @State var isStartupComplete = false
@@ -83,7 +84,7 @@ struct ContentView: View {
         } message: {
             Text(contentImportResultMessage)
         }
-        .background(WindowConfigurator(window: $window, isVisible: shouldShowLauncherWindow))
+        .background(WindowConfigurator(window: $window))
         .background(
             QuickLaunchOptionMonitor(isActive: model.isQuickLaunchActive) {
                 model.cancelQuickLaunch()
@@ -117,26 +118,21 @@ struct ContentView: View {
         .onDisappear {
             DockProgressController.shared.clear()
         }
-        .task(id: window != nil) {
+        .task(id: appDelegate.isInitialStartupComplete) {
             guard !LauncherProcessRole.isSecondaryInstance else {
                 return
             }
-            guard let window else {
+            guard appDelegate.isInitialStartupComplete else {
                 return
             }
             if hasQueuedOrActiveContentImport {
                 revealLauncherForContentImportIfNeeded()
                 await Task.yield()
             }
-            await model.start()
             if shouldUseQuickLaunch && model.credentialAccessDenied && model.selectedVersion != nil {
                 pendingQuickLaunch = true
             }
-            if shouldUseQuickLaunch && model.canStartQuickLaunch {
-                model.beginQuickLaunch()
-            }
             isStartupComplete = true
-            StartupWindowVisibility.shared.reveal(window)
             if hasQueuedOrActiveContentImport {
                 cancelQuickLaunchForContentImportIfNeeded()
             }
@@ -158,10 +154,6 @@ struct ContentView: View {
         LauncherPreferences.quickLaunch
             && !StartupLaunchModifiers.didHoldOption
             && !hasQueuedOrActiveContentImport
-    }
-
-    var shouldShowLauncherWindow: Bool {
-        isStartupComplete || hasQueuedOrActiveContentImport
     }
 
     var hasQueuedOrActiveContentImport: Bool {

@@ -5,7 +5,7 @@ import Sparkle
 import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private static let openExistingInstanceNotification = Notification.Name(
         "local.minecraft.bedrock.swiftlauncher.openExistingInstance"
     )
@@ -16,6 +16,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var openExistingInstanceObserver: NSObjectProtocol?
     private var secondaryTerminationTask: Task<Void, Never>?
     private var secondaryReceivedOpenURLs = false
+    private weak var model: LauncherViewModel?
+    private var initialStartupTask: Task<Void, Never>?
+    private var didFinishLaunching = false
+
+    @Published private(set) var isInitialStartupComplete = false
+
+    func configure(model: LauncherViewModel) {
+        self.model = model
+        if didFinishLaunching {
+            startInitialStartupIfNeeded()
+        }
+    }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         StartupLaunchModifiers.capture()
@@ -38,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         LauncherPreferences.registerDefaults()
+        didFinishLaunching = true
 
         guard !LauncherProcessRole.isSecondaryInstance else {
             StartupWindowVisibility.shared.hideUntilStartupCompletes()
@@ -51,22 +64,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             StartupWindowVisibility.shared.hideUntilStartupCompletes()
         }
 
-        guard AppUpdateConfiguration.isEnabled else {
-            return
+        if AppUpdateConfiguration.isEnabled {
+            let updateCheckGate = LauncherUpdateCheckGate.shared
+            let controller = SPUStandardUpdaterController(
+                startingUpdater: false,
+                updaterDelegate: updateCheckGate,
+                userDriverDelegate: nil
+            )
+            let automaticallyChecksForLauncherUpdates = LauncherPreferences.automaticallyCheckLauncherUpdates
+            controller.updater.automaticallyChecksForUpdates = automaticallyChecksForLauncherUpdates
+            updaterController = controller
+            controller.startUpdater()
+            if shouldForceLauncherUpdateCheckDuringQuickLaunch(controller.updater) {
+                updateCheckGate.startQuickLaunchCheck(updater: controller.updater)
+            }
         }
-        let updateCheckGate = LauncherUpdateCheckGate.shared
-        let controller = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: updateCheckGate,
-            userDriverDelegate: nil
-        )
-        let automaticallyChecksForLauncherUpdates = LauncherPreferences.automaticallyCheckLauncherUpdates
-        controller.updater.automaticallyChecksForUpdates = automaticallyChecksForLauncherUpdates
-        updaterController = controller
-        controller.startUpdater()
-        if shouldForceLauncherUpdateCheckDuringQuickLaunch(controller.updater) {
-            updateCheckGate.startQuickLaunchCheck(updater: controller.updater)
-        }
+
+        startInitialStartupIfNeeded()
     }
 
     private func shouldForceLauncherUpdateCheckDuringQuickLaunch(_ updater: SPUUpdater) -> Bool {
@@ -82,7 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        !StartupWindowVisibility.shared.hasLauncherWindow
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -92,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         secondaryTerminationTask?.cancel()
+        initialStartupTask?.cancel()
         ChildProcessRegistry.shared.terminateAll()
         if let openExistingInstanceObserver {
             DistributedNotificationCenter.default().removeObserver(openExistingInstanceObserver)
@@ -182,6 +197,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
         }
     }
+
+    private func startInitialStartupIfNeeded() {
+        guard !LauncherProcessRole.isSecondaryInstance,
+              !isInitialStartupComplete,
+              initialStartupTask == nil,
+              let model else {
+            return
+        }
+
+        initialStartupTask = Task { @MainActor [weak self, weak model] in
+            guard let self, let model else {
+                return
+            }
+            await model.start()
+            guard !Task.isCancelled else {
+                return
+            }
+
+            if LauncherPreferences.quickLaunch,
+               !StartupLaunchModifiers.didHoldOption,
+               !ContentImportOpenFileQueue.shared.hasPendingURLs,
+               model.canStartQuickLaunch {
+                model.beginQuickLaunch()
+            }
+
+            isInitialStartupComplete = true
+            await Task.yield()
+            StartupWindowVisibility.shared.startupDidFinish()
+        }
+    }
 }
 
 @MainActor
@@ -263,49 +308,104 @@ enum StartupLaunchModifiers {
 final class StartupWindowVisibility {
     static let shared = StartupWindowVisibility()
 
-    private var shouldHideMainWindow = false
+    private static let launcherWindowTitle = "Minecraft Bedrock Launcher"
+
+    private weak var launcherWindow: NSWindow?
+    private var launcherWindowCloseObserver: NSObjectProtocol?
+    private var shouldHideMainWindow = true
+    private var startupHasCompleted = false
 
     private init() {}
 
-    func hideUntilStartupCompletes() {
-        shouldHideMainWindow = true
-        NSApp.windows.forEach(hideIfNeeded)
+    var hasLauncherWindow: Bool {
+        launcherWindow != nil
     }
 
-    func hideIfNeeded(_ window: NSWindow) {
-        guard shouldHideMainWindow, isLauncherWindow(window) else {
+    func hideUntilStartupCompletes() {
+        guard !startupHasCompleted else {
             return
         }
-        window.alphaValue = 0
-        window.ignoresMouseEvents = true
+        shouldHideMainWindow = true
+        if launcherWindow == nil,
+           let window = NSApp.windows.first(where: isLauncherWindow) {
+            attachLauncherWindow(window)
+        } else if let launcherWindow {
+            hide(launcherWindow)
+        }
+    }
+
+    func attachLauncherWindow(_ window: NSWindow) {
+        if launcherWindow !== window {
+            observeClose(of: window)
+            launcherWindow = window
+        }
+
+        if shouldHideMainWindow && !startupHasCompleted {
+            hide(window)
+        } else {
+            restoreVisibility(of: window)
+        }
+    }
+
+    func startupDidFinish() {
+        startupHasCompleted = true
+        revealLauncherWindow()
     }
 
     func reveal(_ window: NSWindow?) {
         shouldHideMainWindow = false
         guard let window else {
+            revealLauncherWindow()
             return
         }
-        window.ignoresMouseEvents = false
-        window.alphaValue = 1
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        attachLauncherWindow(window)
+        show(window)
     }
 
     func revealLauncherWindow() {
         shouldHideMainWindow = false
-        let window = NSApp.windows.first(where: isLauncherWindow) ?? NSApp.windows.first
+        let window = launcherWindow ?? NSApp.windows.first(where: isLauncherWindow)
         guard let window else {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+        attachLauncherWindow(window)
+        show(window)
+    }
+
+    private func hide(_ window: NSWindow) {
+        restoreVisibility(of: window)
+        window.orderOut(nil)
+    }
+
+    private func restoreVisibility(of window: NSWindow) {
         window.ignoresMouseEvents = false
         window.alphaValue = 1
+    }
+
+    private func show(_ window: NSWindow) {
+        restoreVisibility(of: window)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    private func observeClose(of window: NSWindow) {
+        if let launcherWindowCloseObserver {
+            NotificationCenter.default.removeObserver(launcherWindowCloseObserver)
+        }
+        launcherWindowCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                NSApp.terminate(nil)
+            }
+        }
+    }
+
     private func isLauncherWindow(_ window: NSWindow) -> Bool {
-        window.title == "Minecraft Bedrock Launcher" || window.contentView != nil
+        window.title == Self.launcherWindowTitle
     }
 }
 
@@ -427,16 +527,19 @@ final class LauncherUpdateCheckGate: NSObject, SPUUpdaterDelegate {
 @main
 struct MinecraftBedrockLauncherApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var model = LauncherViewModel()
+    @StateObject private var model: LauncherViewModel
     @Environment(\.openWindow) private var openWindow
 
     init() {
         LauncherPreferences.registerDefaults()
+        let model = LauncherViewModel()
+        _model = StateObject(wrappedValue: model)
+        appDelegate.configure(model: model)
     }
 
     var body: some Scene {
         Window("Minecraft Bedrock Launcher", id: "main") {
-            ContentView(model: model)
+            ContentView(model: model, appDelegate: appDelegate)
                 .frame(
                     minWidth: model.preferredWindowWidth,
                     idealWidth: model.preferredWindowWidth,

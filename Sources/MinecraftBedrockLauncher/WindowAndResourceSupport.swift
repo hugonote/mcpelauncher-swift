@@ -65,26 +65,27 @@ enum LauncherResourceLoader {
 
 struct WindowConfigurator: NSViewRepresentable {
     @Binding var window: NSWindow?
-    var isVisible: Bool
 
     func makeNSView(context: Context) -> WindowAccessorView {
         let view = WindowAccessorView()
-        view.windowDidChange = { window in
-            self.configure(window: window, isVisible: isVisible)
-            self.window = window
-        }
+        view.windowDidChange = handleWindowChange
         return view
     }
 
     func updateNSView(_ view: WindowAccessorView, context: Context) {
-        view.windowDidChange = { window in
-            self.configure(window: window, isVisible: isVisible)
-            self.window = window
-        }
-        configure(window: view.window, isVisible: isVisible)
+        view.windowDidChange = handleWindowChange
+        configure(window: view.window)
     }
 
-    private func configure(window: NSWindow?, isVisible: Bool) {
+    private func handleWindowChange(_ newWindow: NSWindow?) {
+        configure(window: newWindow)
+        guard window !== newWindow else {
+            return
+        }
+        window = newWindow
+    }
+
+    private func configure(window: NSWindow?) {
         guard let window else {
             return
         }
@@ -99,14 +100,7 @@ struct WindowConfigurator: NSViewRepresentable {
         window.styleMask.insert(.fullSizeContentView)
         window.level = .normal
         window.hidesOnDeactivate = false
-        StartupWindowVisibility.shared.hideIfNeeded(window)
-        let wasHidden = window.alphaValue == 0
-        window.alphaValue = isVisible ? 1 : 0
-        if isVisible && wasHidden {
-            StartupWindowVisibility.shared.reveal(window)
-        } else if isVisible {
-            window.ignoresMouseEvents = false
-        }
+        StartupWindowVisibility.shared.attachLauncherWindow(window)
     }
 }
 

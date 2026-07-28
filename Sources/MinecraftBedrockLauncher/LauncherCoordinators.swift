@@ -123,7 +123,7 @@ struct LaunchCoordinator: Sendable {
         dataPath: URL,
         cachePath: URL,
         credentialsHelperDirectory: URL,
-        googleCredential: GoogleCredential,
+        googleCredential: GoogleCredential?,
         logURL: URL?,
         clientWrapperExecutableURL: URL?,
         clientWrapperIconURL: URL?

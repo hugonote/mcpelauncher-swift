@@ -66,6 +66,9 @@ extension LauncherViewModel {
         guard LauncherPreferences.canAutomaticallyInstallGameUpdates else {
             return true
         }
+        guard credential != nil else {
+            return true
+        }
         guard runtimePathForReadyRuntime() != nil else {
             return false
         }

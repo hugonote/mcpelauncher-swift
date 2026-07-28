@@ -38,9 +38,7 @@ extension LauncherViewModel {
             try applyCompatibilityLibraryPatches(to: selectedVersion, patchPath: patchPath)
             let launcher = RuntimeLauncher(processRunner: processRunner)
             let credentialsHelperDirectory = credentialsHelperURL().deletingLastPathComponent()
-            guard let googleCredential = try loadStoredCredentialIfNeeded() else {
-                throw LauncherError.missingCredential
-            }
+            let googleCredential = try loadStoredCredentialIfNeeded()
             let logURL = captureLog ? launchLogURL(for: selectedVersion) : nil
             let dataPath = paths.minecraftDataURL
             let cachePath = dataPath
@@ -106,7 +104,7 @@ extension LauncherViewModel {
         dataPath: URL,
         cachePath: URL,
         credentialsHelperDirectory: URL,
-        googleCredential: GoogleCredential,
+        googleCredential: GoogleCredential?,
         detail: String,
         captureLog: Bool,
         maxAttempts: Int = 3

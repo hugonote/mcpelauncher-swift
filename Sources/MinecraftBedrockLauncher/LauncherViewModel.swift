@@ -178,7 +178,6 @@ final class LauncherViewModel: ObservableObject {
         self.registry = InstalledVersionRegistry(paths: resolvedPaths)
         self.processRunner = processRunner
         try? preloadLocalStateForInitialLayout()
-        preloadStoredCredentialForInitialLayout()
         startNetworkMonitor()
     }
 

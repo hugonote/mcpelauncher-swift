@@ -98,6 +98,7 @@ struct WindowConfigurator: NSViewRepresentable {
         window.titlebarSeparatorStyle = .none
         window.styleMask.remove(.resizable)
         window.styleMask.insert(.fullSizeContentView)
+        window.isRestorable = false
         window.level = .normal
         window.hidesOnDeactivate = false
         StartupWindowVisibility.shared.attachLauncherWindow(window)

@@ -145,7 +145,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
       <key>CFBundleTypeName</key>
       <string>Minecraft Bedrock Content</string>
       <key>CFBundleTypeRole</key>
-      <string>Editor</string>
+      <string>Viewer</string>
       <key>CFBundleTypeExtensions</key>
       <array>
         <string>mcpack</string>

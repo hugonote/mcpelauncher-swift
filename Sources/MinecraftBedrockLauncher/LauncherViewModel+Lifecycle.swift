@@ -220,15 +220,6 @@ extension LauncherViewModel {
         refreshInstalledRuntimeState()
     }
 
-    func preloadStoredCredentialForInitialLayout() {
-        do {
-            didTryLoadingStoredCredential = true
-            credential = try credentialStore.loadCredential()
-        } catch {
-            didTryLoadingStoredCredential = false
-        }
-    }
-
     func startNetworkMonitor() {
         networkMonitor.pathUpdateHandler = { [weak self] path in
             guard path.status == .satisfied else {

@@ -119,9 +119,6 @@ struct ContentView: View {
             DockProgressController.shared.clear()
         }
         .task(id: appDelegate.isInitialStartupComplete) {
-            guard !LauncherProcessRole.isSecondaryInstance else {
-                return
-            }
             guard appDelegate.isInitialStartupComplete else {
                 return
             }

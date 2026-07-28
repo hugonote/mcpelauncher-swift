@@ -2,7 +2,7 @@ import Foundation
 import MinecraftBedrockLauncherCore
 
 struct LoginCoordinator: Sendable {
-    var googlePlay: any GooglePlayDownloading
+    var googlePlay: FinskyGooglePlayClient
     var credentialStore: CredentialStore
 
     func completeLogin(email: String, userID: String, oauthToken: String) async throws -> GoogleCredential {
@@ -21,7 +21,7 @@ struct MinecraftDownloadCoordinator: Sendable {
     static let packageName = "com.mojang.minecraftpe"
     static let abi = "arm64-v8a"
 
-    var googlePlay: any GooglePlayDownloading
+    var googlePlay: FinskyGooglePlayClient
     var processRunner: ProcessRunning
 
     func latestVersion(credential: GoogleCredential) async throws -> LatestVersion {

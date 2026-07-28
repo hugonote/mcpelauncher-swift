@@ -37,10 +37,3 @@ enum TouchBarMetrics {
     static let skipButtonWidth: CGFloat = 88
     static let iconButtonWidth: CGFloat = 38
 }
-
-extension NSColor {
-    func resolvedCGColor(for appearance: NSAppearance) -> CGColor {
-        _ = appearance
-        return usingColorSpace(NSColorSpace.deviceRGB)?.cgColor ?? cgColor
-    }
-}

@@ -35,6 +35,7 @@ struct DrawOnSymbolView: View {
         Group {
             if #available(macOS 26.0, *) {
                 ZStack {
+                    icon.hidden()
                     if isVisible {
                         icon
                             .transition(.symbolEffect(.drawOn.byLayer))

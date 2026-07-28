@@ -64,10 +64,8 @@ The launcher code is MIT licensed. Upstream components keep their own licenses.
 
 Requirements:
 
-- macOS 14 or newer
-- Apple Silicon Mac for release builds
-- Swift 6 toolchain
-- Xcode with `actool` for app icon compilation
+- macOS 15.6 or newer
+- Xcode 26 or newer
 
 Run tests:
 
@@ -89,14 +87,6 @@ Scripts/build-dmg.sh
 
 The bundle script builds the launcher, helper executables, Sparkle framework,
 and app resources.
-
-If you want to build the Swift products manually:
-
-```sh
-swift build -c release --product MinecraftBedrockLauncher
-swift build -c release --product mcpelauncher-ui-qt
-swift build -c release --product mcpelauncher-webview
-```
 
 Useful release-time variables:
 

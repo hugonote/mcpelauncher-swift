@@ -36,7 +36,6 @@ final class LauncherTouchBarStatusView: NSView {
         dot.layer?.backgroundColor = state.statusColor.usingColorSpace(.deviceRGB)?.cgColor ?? state.statusColor.cgColor
         setFrameSize(intrinsicContentSize)
         invalidateIntrinsicContentSize()
-        layoutSubtreeIfNeeded()
     }
 
     private func setupView() {

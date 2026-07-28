@@ -38,7 +38,6 @@ final class LauncherTouchBarProgressView: NSView {
 
         setFrameSize(intrinsicContentSize)
         invalidateIntrinsicContentSize()
-        layoutSubtreeIfNeeded()
     }
 
     private func setupView() {

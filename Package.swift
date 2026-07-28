@@ -23,10 +23,6 @@ let package = Package(
         .executable(
             name: "mcpelauncher-client-wrapper",
             targets: ["MinecraftBedrockClientWrapper"]
-        ),
-        .library(
-            name: "MinecraftBedrockLauncherCore",
-            targets: ["MinecraftBedrockLauncherCore"]
         )
     ],
     dependencies: [

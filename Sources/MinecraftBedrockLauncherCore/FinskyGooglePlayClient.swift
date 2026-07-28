@@ -1,7 +1,7 @@
 import Foundation
 import FinskyKit
 
-public struct FinskyGooglePlayClient: GooglePlayDownloading, Sendable {
+public struct FinskyGooglePlayClient: Sendable {
     private let client: any FinskyDownloading
 
     public init() {

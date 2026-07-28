@@ -33,7 +33,7 @@ final class LauncherTouchBarStatusView: NSView {
         leadingConstraint.constant = TouchBarMetrics.statusHorizontalPadding
         trailingConstraint.constant = -TouchBarMetrics.statusHorizontalPadding
         layer?.backgroundColor = isCompact ? NSColor.clear.cgColor : NSColor.black.withAlphaComponent(0.22).cgColor
-        dot.layer?.backgroundColor = state.statusColor.resolvedCGColor(for: effectiveAppearance)
+        dot.layer?.backgroundColor = state.statusColor.usingColorSpace(.deviceRGB)?.cgColor ?? state.statusColor.cgColor
         setFrameSize(intrinsicContentSize)
         invalidateIntrinsicContentSize()
         layoutSubtreeIfNeeded()

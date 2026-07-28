@@ -125,7 +125,7 @@ extension LauncherViewModel {
         return storedCredential
     }
 
-    func makeGooglePlayClient() -> any GooglePlayDownloading {
+    func makeGooglePlayClient() -> FinskyGooglePlayClient {
         FinskyGooglePlayClient()
     }
 

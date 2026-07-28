@@ -126,7 +126,9 @@ struct ContentView: View {
                 revealLauncherForContentImportIfNeeded()
                 await Task.yield()
             }
-            if shouldUseQuickLaunch && model.credentialAccessDenied && model.selectedVersion != nil {
+            if shouldUseQuickLaunch,
+               model.credentialAccessDenied,
+               model.selectedVersion != nil || LauncherPreferences.canAutomaticallyInstallGameUpdates {
                 pendingQuickLaunch = true
             }
             isStartupComplete = true

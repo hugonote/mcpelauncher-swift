@@ -108,7 +108,9 @@ final class LauncherViewModel: ObservableObject {
     }
 
     var canStartQuickLaunch: Bool {
-        credential != nil && selectedVersion != nil && !credentialAccessDenied
+        credential != nil
+            && !credentialAccessDenied
+            && (selectedVersion != nil || LauncherPreferences.canAutomaticallyInstallGameUpdates)
     }
 
     var dataFolderURL: URL {

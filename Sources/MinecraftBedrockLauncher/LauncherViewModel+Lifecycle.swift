@@ -150,7 +150,7 @@ extension LauncherViewModel {
                 cancelQuickLaunch()
                 return false
             }
-            if credentialAccessDenied || credential == nil || selectedVersion == nil {
+            if !canStartQuickLaunch {
                 finishQuickLaunch()
                 return false
             }

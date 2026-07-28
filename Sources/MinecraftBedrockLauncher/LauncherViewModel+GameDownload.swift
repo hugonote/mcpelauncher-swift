@@ -69,9 +69,6 @@ extension LauncherViewModel {
         guard runtimePathForReadyRuntime() != nil else {
             return false
         }
-        guard selectedVersion != nil else {
-            return true
-        }
         if latestVersion == nil {
             await fetchLatest()
         }

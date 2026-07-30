@@ -82,6 +82,32 @@ public struct AppPaths: Equatable, Sendable {
             try fileManager.removeItem(at: item)
         }
     }
+
+    public func deleteGameFiles(fileManager: FileManager = .default) throws {
+        for url in [versionsURL, downloadsURL, installedVersionsURL] {
+            try removeItemWithRetry(at: url, fileManager: fileManager)
+        }
+        try fileManager.createDirectory(at: versionsURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: downloadsURL, withIntermediateDirectories: true)
+    }
+
+    private func removeItemWithRetry(at url: URL, fileManager: FileManager) throws {
+        for attempt in 0..<3 {
+            guard fileManager.fileExists(atPath: url.path) else {
+                return
+            }
+            do {
+                try fileManager.removeItem(at: url)
+                return
+            } catch {
+                guard attempt == 2 else {
+                    Thread.sleep(forTimeInterval: 0.05)
+                    continue
+                }
+                throw error
+            }
+        }
+    }
 }
 
 public enum LauncherError: Error, LocalizedError, Equatable {

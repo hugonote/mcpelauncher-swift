@@ -7,18 +7,9 @@ extension LauncherViewModel {
         do {
             isDeletingGame = true
             defer { isDeletingGame = false }
-            let versionsURL = paths.versionsURL
-            let downloadsURL = paths.downloadsURL
-            let installedVersionsURL = paths.installedVersionsURL
+            let paths = paths
             try await runOffMain {
-                for url in [versionsURL, downloadsURL] where FileManager.default.fileExists(atPath: url.path) {
-                    try FileManager.default.removeItem(at: url)
-                }
-                if FileManager.default.fileExists(atPath: installedVersionsURL.path) {
-                    try FileManager.default.removeItem(at: installedVersionsURL)
-                }
-                try FileManager.default.createDirectory(at: versionsURL, withIntermediateDirectories: true)
-                try FileManager.default.createDirectory(at: downloadsURL, withIntermediateDirectories: true)
+                try paths.deleteGameFiles()
             }
             selectedVersion = nil
             latestVersion = nil

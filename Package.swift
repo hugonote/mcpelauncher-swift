@@ -26,7 +26,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/hugonote/FinskyKit.git", branch: "main"),
+        .package(url: "https://github.com/hugonote/FinskyKit.git", from: "0.1.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.1")
     ],
     targets: [

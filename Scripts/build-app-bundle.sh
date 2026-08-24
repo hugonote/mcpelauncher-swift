@@ -20,25 +20,14 @@ MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-14.0}"
 mkdir -p "$OUT_DIR"
 rm -rf "$APP_DIR"
 
-swift build \
-  --package-path "$PACKAGE_DIR" \
-  -c "$CONFIGURATION" \
-  --product MinecraftBedrockLauncher
+if [[ ! -x "$ACTOOL" ]]; then
+  echo "error: Xcode actool was not found. Icon Composer app icons require Xcode 26 or newer." >&2
+  exit 1
+fi
 
 swift build \
   --package-path "$PACKAGE_DIR" \
-  -c "$CONFIGURATION" \
-  --product mcpelauncher-ui-qt
-
-swift build \
-  --package-path "$PACKAGE_DIR" \
-  -c "$CONFIGURATION" \
-  --product mcpelauncher-webview
-
-swift build \
-  --package-path "$PACKAGE_DIR" \
-  -c "$CONFIGURATION" \
-  --product mcpelauncher-client-wrapper
+  -c "$CONFIGURATION"
 
 BUILD_DIR="$(swift build --package-path "$PACKAGE_DIR" -c "$CONFIGURATION" --show-bin-path)"
 
@@ -59,11 +48,6 @@ ICON_PARTIAL_INFO_PLIST="$ICON_COMPILE_DIR/assetcatalog_generated_info.plist"
 rm -rf "$ICON_COMPILE_DIR"
 mkdir -p "$ICON_COMPILE_DIR"
 
-if [[ ! -x "$ACTOOL" ]]; then
-  echo "error: Xcode actool was not found. Icon Composer app icons require Xcode 26 or newer." >&2
-  exit 1
-fi
-
 "$ACTOOL" "$APP_ICON_DOCUMENT" \
   --app-icon "$APP_ICON_NAME" \
   --compile "$ICON_COMPILE_DIR" \
@@ -83,22 +67,18 @@ cp "$PACKAGE_DIR/Resources/cut-bedrock-launcher-icon-foreground-transparent.png"
 cp "$PACKAGE_DIR/Resources/ThirdPartyNotices.txt" "$APP_DIR/Contents/Resources/ThirdPartyNotices.txt"
 cp "$PACKAGE_DIR/LICENSE" "$APP_DIR/Contents/Resources/Licenses/Minecraft-Bedrock-Launcher-MIT.txt"
 
-cp "$BUILD_DIR/MinecraftBedrockLauncher" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
-chmod 755 "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
-install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME" 2>/dev/null || true
+install -m 755 "$BUILD_DIR/MinecraftBedrockLauncher" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 for resource_bundle in "$BUILD_DIR"/*.bundle(N); do
   [[ -d "$resource_bundle" ]] || continue
   ditto "$resource_bundle" "$APP_DIR/Contents/Resources/${resource_bundle:t}"
 done
-cp "$BUILD_DIR/mcpelauncher-ui-qt" "$APP_DIR/Contents/Helpers/mcpelauncher-ui-qt"
-chmod 755 "$APP_DIR/Contents/Helpers/mcpelauncher-ui-qt"
-cp "$BUILD_DIR/mcpelauncher-webview" "$APP_DIR/Contents/Helpers/mcpelauncher-webview"
-chmod 755 "$APP_DIR/Contents/Helpers/mcpelauncher-webview"
-cp "$BUILD_DIR/mcpelauncher-client-wrapper" "$APP_DIR/Contents/Helpers/mcpelauncher-client-wrapper"
-chmod 755 "$APP_DIR/Contents/Helpers/mcpelauncher-client-wrapper"
+install -m 755 "$BUILD_DIR/mcpelauncher-ui-qt" "$APP_DIR/Contents/Helpers/mcpelauncher-ui-qt"
+install -m 755 "$BUILD_DIR/mcpelauncher-webview" "$APP_DIR/Contents/Helpers/mcpelauncher-webview"
+install -m 755 "$BUILD_DIR/mcpelauncher-client-wrapper" "$APP_DIR/Contents/Helpers/mcpelauncher-client-wrapper"
 
-SPARKLE_FRAMEWORK="$(find "$PACKAGE_DIR/.build" -path "*/Sparkle.framework" -type d -print -quit)"
-if [[ -z "$SPARKLE_FRAMEWORK" ]]; then
+SPARKLE_FRAMEWORK="$BUILD_DIR/Sparkle.framework"
+if [[ ! -d "$SPARKLE_FRAMEWORK" ]]; then
   echo "error: Sparkle.framework was not found after swift build" >&2
   exit 1
 fi

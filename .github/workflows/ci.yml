@@ -5,33 +5,26 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   swift:
-    name: Swift build and tests
     runs-on: macos-26
+    timeout-minutes: 15
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Show Swift version
-        run: swift --version
-
-      - name: Run tests
+      - name: Test
         run: swift test
-
-      - name: Build launcher
-        run: swift build -c release --product MinecraftBedrockLauncher
-
-      - name: Build credentials helper
-        run: swift build -c release --product mcpelauncher-ui-qt
 
       - name: Build app bundle
         env:
           CODESIGN_IDENTITY: skip
         run: Scripts/build-app-bundle.sh
-
-      - name: Verify app resources
-        run: test -f ".build/app/Minecraft Bedrock Launcher.app/Contents/Resources/cut-bedrock-launcher-icon-foreground-transparent.png"

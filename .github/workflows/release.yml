@@ -2,262 +2,48 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to publish, for example 0.1.1"
-        required: true
+    tags: ["v*"]
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
-  macos-dmg:
-    name: Build DMG
+  release:
     runs-on: macos-26
-
+    timeout-minutes: 15
+    permissions:
+      contents: write
     env:
       APP_NAME: Minecraft Bedrock Launcher
+      CODESIGN_IDENTITY: "-"
       SPARKLE_FEED_URL: https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml
-      SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
-      SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
-      DEVELOPER_ID_APPLICATION_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION_IDENTITY }}
-      DEVELOPER_ID_APPLICATION_P12_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}
-      DEVELOPER_ID_APPLICATION_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v6
 
-      - name: Resolve version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ inputs.version }}"
-            TAG="v$VERSION"
-          else
-            TAG="${GITHUB_REF_NAME}"
-            VERSION="${TAG#v}"
-          fi
-          DMG_SAFE_NAME="${APP_NAME// /.}-$VERSION.dmg"
-          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
-          echo "DMG_NAME=$DMG_SAFE_NAME" >> "$GITHUB_ENV"
-
-      - name: Validate release secrets
-        run: |
-          missing=()
-          for name in \
-            SPARKLE_PUBLIC_ED_KEY \
-            SPARKLE_PRIVATE_ED_KEY
-          do
-            if [[ -z "${!name}" ]]; then
-              missing+=("$name")
-            fi
-          done
-          if (( ${#missing[@]} > 0 )); then
-            printf 'Missing required release secrets:\n' >&2
-            printf '  - %s\n' "${missing[@]}" >&2
-            exit 1
-          fi
-
-          developer_id_values=(
-            "$DEVELOPER_ID_APPLICATION_IDENTITY"
-            "$DEVELOPER_ID_APPLICATION_P12_BASE64"
-            "$DEVELOPER_ID_APPLICATION_P12_PASSWORD"
-            "$APPLE_ID"
-            "$APPLE_TEAM_ID"
-            "$APPLE_APP_SPECIFIC_PASSWORD"
-          )
-          developer_id_count=0
-          for value in "${developer_id_values[@]}"; do
-            [[ -n "$value" ]] && (( developer_id_count += 1 ))
-          done
-
-          if (( developer_id_count == 0 )); then
-            echo "RELEASE_SIGNING_MODE=adhoc" >> "$GITHUB_ENV"
-            echo "CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
-            echo "Building ad-hoc signed DMG without notarization."
-          elif (( developer_id_count == ${#developer_id_values[@]} )); then
-            echo "RELEASE_SIGNING_MODE=developer-id" >> "$GITHUB_ENV"
-            echo "CODESIGN_IDENTITY=$DEVELOPER_ID_APPLICATION_IDENTITY" >> "$GITHUB_ENV"
-            echo "Building Developer ID signed and notarized DMG."
-          else
-            printf 'Developer ID signing is partially configured.\n' >&2
-            printf 'Either set all Developer ID secrets, or remove all of them to build an ad-hoc signed DMG.\n\n' >&2
-            printf 'Required Developer ID secrets:\n' >&2
-            printf '  - DEVELOPER_ID_APPLICATION_IDENTITY\n' >&2
-            printf '  - DEVELOPER_ID_APPLICATION_P12_BASE64\n' >&2
-            printf '  - DEVELOPER_ID_APPLICATION_P12_PASSWORD\n' >&2
-            printf '  - APPLE_ID\n' >&2
-            printf '  - APPLE_TEAM_ID\n' >&2
-            printf '  - APPLE_APP_SPECIFIC_PASSWORD\n' >&2
-            exit 1
-          fi
-
-      - name: Import Developer ID certificate
-        if: env.RELEASE_SIGNING_MODE == 'developer-id'
-        env:
-          KEYCHAIN_PASSWORD: ${{ runner.temp }}-${{ github.run_id }}
-        run: |
-          KEYCHAIN_PATH="$RUNNER_TEMP/release.keychain-db"
-          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id-application.p12"
-
-          echo "$DEVELOPER_ID_APPLICATION_P12_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" \
-            -P "$DEVELOPER_ID_APPLICATION_P12_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH" \
-            -T /usr/bin/codesign
-          security list-keychains -d user -s "$KEYCHAIN_PATH"
-          security default-keychain -s "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-
-      - name: Build DMG
-        run: Scripts/build-dmg.sh
-
-      - name: Notarize and staple DMG
-        if: env.RELEASE_SIGNING_MODE == 'developer-id'
-        run: |
-          xcrun notarytool submit ".build/dmg/$DMG_NAME" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --wait
-          xcrun stapler staple ".build/dmg/$DMG_NAME"
-
-      - name: Generate Sparkle appcast
-        run: |
-          : "${RELEASE_TAG:?RELEASE_TAG is empty}"
-          : "${DMG_NAME:?DMG_NAME is empty}"
-          mkdir -p .build/release
-          cp ".build/dmg/$DMG_NAME" .build/release/
-          RELEASE_NOTES_PATH="ReleaseNotes/$RELEASE_TAG.md"
-          if [[ ! -f "$RELEASE_NOTES_PATH" ]]; then
-            echo "Missing release notes: $RELEASE_NOTES_PATH" >&2
-            exit 1
-          fi
-          cp "$RELEASE_NOTES_PATH" ".build/release/${DMG_NAME%.dmg}.md"
-          DOWNLOAD_URL_PREFIX="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/"
-          EXPECTED_DOWNLOAD_URL="${DOWNLOAD_URL_PREFIX}${DMG_NAME}"
-          printf '%s' "$SPARKLE_PRIVATE_ED_KEY" | \
-            .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
-              --ed-key-file - \
-              --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
-              --embed-release-notes \
-              --maximum-deltas 0 \
-              .build/release
-          grep -F "$EXPECTED_DOWNLOAD_URL" .build/release/appcast.xml
-
-      - name: Verify release artifacts
-        run: |
-          test -f ".build/release/$DMG_NAME"
-          test -f ".build/release/appcast.xml"
-          test -s ".build/release/appcast.xml"
-          grep -F "<enclosure" .build/release/appcast.xml
-          grep -F "sparkle:edSignature=" .build/release/appcast.xml
-          test -f ".build/release/${DMG_NAME%.dmg}.md"
-          RELEASE_NOTES_PROBE="$(awk '/^- / { sub(/^- /, ""); print; exit }' "ReleaseNotes/$RELEASE_TAG.md")"
-          test -n "$RELEASE_NOTES_PROBE"
-          grep -F "$RELEASE_NOTES_PROBE" .build/release/appcast.xml
-          if [[ "$RELEASE_SIGNING_MODE" == "developer-id" ]]; then
-            spctl --assess --type open --context context:primary-signature -v ".build/release/$DMG_NAME"
-          else
-            codesign --verify --deep --strict ".build/app/$APP_NAME.app"
-          fi
-          test -f ".build/app/$APP_NAME.app/Contents/Resources/cut-bedrock-launcher-icon-foreground-transparent.png"
-
-      - name: Create or update GitHub Release
+      - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          RELEASE_NOTES_OUTPUT=".build/release/${DMG_NAME%.dmg}.md"
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" ".build/release/$DMG_NAME" .build/release/appcast.xml --clobber
-            gh release edit "$RELEASE_TAG" --notes-file "$RELEASE_NOTES_OUTPUT"
-          else
-            gh release create "$RELEASE_TAG" ".build/release/$DMG_NAME" .build/release/appcast.xml \
-              --title "$RELEASE_TAG" \
-              --notes-file "$RELEASE_NOTES_OUTPUT"
-          fi
+          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+          SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
+        run: Scripts/release.sh
 
-  homebrew-cask:
-    name: Update Homebrew tap
-    needs: macos-dmg
+  homebrew:
+    needs: release
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
 
     steps:
-      - name: Validate Homebrew tap token
-        env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          if [[ -z "$HOMEBREW_TAP_TOKEN" ]]; then
-            echo "Missing required secret: HOMEBREW_TAP_TOKEN" >&2
-            exit 1
-          fi
+      - uses: actions/checkout@v6
 
-      - name: Check out Homebrew tap
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: hugonote/homebrew-mcpelauncher-swift
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 
-      - name: Resolve version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ inputs.version }}"
-            TAG="v$VERSION"
-          else
-            TAG="${GITHUB_REF_NAME}"
-            VERSION="${TAG#v}"
-          fi
-          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
-          echo "DMG_NAME=Minecraft.Bedrock.Launcher-$VERSION.dmg" >> "$GITHUB_ENV"
-
-      - name: Update cask
+      - name: Update Homebrew cask
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          DIGEST="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
-            --jq ".assets[] | select(.name == \"${DMG_NAME}\") | .digest")"
-          if [[ "$DIGEST" != sha256:* ]]; then
-            echo "Could not find sha256 digest for ${DMG_NAME} in ${RELEASE_TAG}." >&2
-            exit 1
-          fi
-          SHA256="${DIGEST#sha256:}"
-
-          ruby - "${APP_VERSION}" "${SHA256}" <<'RUBY'
-          path = "homebrew-tap/Casks/minecraft-bedrock-launcher.rb"
-          version, sha256 = ARGV
-          text = File.read(path)
-          abort "version stanza not found" unless text.sub!(/version "[^"]+"/, %(version "#{version}"))
-          abort "sha256 stanza not found" unless text.sub!(/sha256 "[0-9a-f]{64}"/, %(sha256 "#{sha256}"))
-          File.write(path, text)
-          RUBY
-
-      - name: Commit cask update
-        working-directory: homebrew-tap
-        run: |
-          if git diff --quiet -- Casks/minecraft-bedrock-launcher.rb; then
-            echo "Homebrew cask is already up to date."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/minecraft-bedrock-launcher.rb
-          git commit -m "minecraft-bedrock-launcher ${RELEASE_TAG}"
-          git push
+        run: Scripts/update-homebrew-cask.sh

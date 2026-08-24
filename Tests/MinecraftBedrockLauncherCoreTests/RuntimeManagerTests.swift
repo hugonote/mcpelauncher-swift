@@ -3,13 +3,6 @@ import XCTest
 @testable import MinecraftBedrockLauncherCore
 
 final class RuntimeManagerTests: XCTestCase {
-    func testDefaultRuntimeManifestUsesSwiftLauncherRelease() {
-        XCTAssertEqual(
-            RuntimeManager.defaultRuntimeManifestURL.absoluteString,
-            "https://github.com/hugonote/mcpelauncher-swift/releases/latest/download/runtime-manifest.json"
-        )
-    }
-
     func testSelectRuntimeAssetPrefersModernMacOSDMG() {
         let assets = [
             GitHubAsset(

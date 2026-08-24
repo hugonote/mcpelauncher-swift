@@ -6,6 +6,7 @@ final class LauncherInstanceCoordinatorTests: XCTestCase {
     private static let helperPortNameKey = "MBL_TEST_INSTANCE_PORT_NAME"
     private static let helperReadyPathKey = "MBL_TEST_INSTANCE_READY_PATH"
     private static let helperExpectedPathKey = "MBL_TEST_INSTANCE_EXPECTED_PATH"
+    private static let helperSecondExpectedPathKey = "MBL_TEST_INSTANCE_SECOND_EXPECTED_PATH"
 
     func testSecondaryForwardsURLsAcrossProcesses() async throws {
         let environment = ProcessInfo.processInfo.environment
@@ -13,14 +14,20 @@ final class LauncherInstanceCoordinatorTests: XCTestCase {
             try await runPrimaryHelper(
                 portName: helperPortName,
                 readyPath: try XCTUnwrap(environment[Self.helperReadyPathKey]),
-                expectedPath: try XCTUnwrap(environment[Self.helperExpectedPathKey])
+                expectedPaths: [
+                    try XCTUnwrap(environment[Self.helperExpectedPathKey]),
+                    try XCTUnwrap(environment[Self.helperSecondExpectedPathKey])
+                ]
             )
             return
         }
 
         let temporaryDirectory = try TemporaryDirectory()
         let readyURL = temporaryDirectory.url.appendingPathComponent("primary-ready")
-        let expectedURL = temporaryDirectory.url.appendingPathComponent("Forwarded.mcworld")
+        let expectedURLs = [
+            temporaryDirectory.url.appendingPathComponent("World.mcworld"),
+            temporaryDirectory.url.appendingPathComponent("Resources.mcpack")
+        ]
         let portName = portName()
         let outputPipe = Pipe()
         let errorPipe = Pipe()
@@ -37,7 +44,8 @@ final class LauncherInstanceCoordinatorTests: XCTestCase {
         var helperEnvironment = environment
         helperEnvironment[Self.helperPortNameKey] = portName
         helperEnvironment[Self.helperReadyPathKey] = readyURL.path
-        helperEnvironment[Self.helperExpectedPathKey] = expectedURL.path
+        helperEnvironment[Self.helperExpectedPathKey] = expectedURLs[0].path
+        helperEnvironment[Self.helperSecondExpectedPathKey] = expectedURLs[1].path
         primaryProcess.environment = helperEnvironment
 
         try primaryProcess.run()
@@ -63,7 +71,7 @@ final class LauncherInstanceCoordinatorTests: XCTestCase {
         let secondary = LauncherInstanceCoordinator(portName: portName)
         defer { secondary.shutdown() }
         XCTAssertEqual(secondary.role, .secondary)
-        let delivered = await secondary.forward([expectedURL])
+        let delivered = await secondary.forward(expectedURLs)
         XCTAssertTrue(delivered)
 
         if !(await waitUntil({ !primaryProcess.isRunning })) {
@@ -75,34 +83,6 @@ final class LauncherInstanceCoordinatorTests: XCTestCase {
             0,
             processOutput(outputPipe, errorPipe)
         )
-    }
-
-    func testSecondaryForwardsURLsAndWaitsForPrimaryAcknowledgement() async throws {
-        let temporaryDirectory = try TemporaryDirectory()
-        let portName = portName()
-        let primary = LauncherInstanceCoordinator(portName: portName)
-        let secondary = LauncherInstanceCoordinator(portName: portName)
-        defer {
-            secondary.shutdown()
-            primary.shutdown()
-        }
-        XCTAssertEqual(primary.role, .primary)
-        XCTAssertEqual(secondary.role, .secondary)
-
-        let expectedURLs = [
-            temporaryDirectory.url.appendingPathComponent("World.mcworld"),
-            temporaryDirectory.url.appendingPathComponent("Resources.mcpack")
-        ]
-        let receivedRequest = expectation(description: "Primary received forwarded URLs")
-        primary.setRequestHandler { urls in
-            XCTAssertEqual(urls, expectedURLs)
-            receivedRequest.fulfill()
-        }
-
-        let delivered = await secondary.forward(expectedURLs)
-
-        XCTAssertTrue(delivered)
-        await fulfillment(of: [receivedRequest], timeout: 1)
     }
 
     func testRequestIsBufferedUntilPrimaryInstallsHandler() async throws {
@@ -166,7 +146,7 @@ final class LauncherInstanceCoordinatorTests: XCTestCase {
     private func runPrimaryHelper(
         portName: String,
         readyPath: String,
-        expectedPath: String
+        expectedPaths: [String]
     ) async throws {
         let primary = LauncherInstanceCoordinator(portName: portName)
         defer { primary.shutdown() }
@@ -177,7 +157,7 @@ final class LauncherInstanceCoordinatorTests: XCTestCase {
 
         let receivedRequest = expectation(description: "Primary helper received forwarded URL")
         primary.setRequestHandler { urls in
-            XCTAssertEqual(urls, [URL(fileURLWithPath: expectedPath)])
+            XCTAssertEqual(urls, expectedPaths.map(URL.init(fileURLWithPath:)))
             receivedRequest.fulfill()
         }
         try Data([1]).write(to: URL(fileURLWithPath: readyPath), options: .atomic)

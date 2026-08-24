@@ -5,7 +5,7 @@ import XCTest
 final class RuntimeProcessGroupSupervisorTests: XCTestCase {
     func testSupervisorTerminatesForkedRuntimeChildWhileRootIsRunning() {
         let system = MockRuntimeProcessGroupSupervisionSystem(
-            processIdentifiers: [[70, 71]],
+            processIdentifiers: [[70, 71, 72]],
             processExitResults: [false, true]
         )
         let supervisor = RuntimeProcessGroupSupervisor(
@@ -24,24 +24,6 @@ final class RuntimeProcessGroupSupervisorTests: XCTestCase {
         XCTAssertEqual(system.waitedProcessIdentifiers, [70, 70])
         XCTAssertEqual(system.waitTimeouts, [2, 2])
         XCTAssertEqual(system.sleepIntervals, [5])
-        XCTAssertEqual(system.signals, [
-            Signal(processID: 71, value: SIGKILL)
-        ])
-    }
-
-    func testSupervisorKillsEveryForkedRuntimeChildFoundDuringLiveCheck() {
-        let system = MockRuntimeProcessGroupSupervisionSystem(
-            processIdentifiers: [[70, 71, 72]],
-            processExitResults: [false, true]
-        )
-        let supervisor = RuntimeProcessGroupSupervisor(system: system)
-
-        supervisor.supervise(
-            runtimeProcessID: 70,
-            runtimeProcessGroupID: 70,
-            runtimeExecutablePath: "/Runtime/bin/mcpelauncher-client"
-        )
-
         XCTAssertEqual(system.signals, [
             Signal(processID: 71, value: SIGKILL),
             Signal(processID: 72, value: SIGKILL)

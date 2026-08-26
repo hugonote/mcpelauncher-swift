@@ -21,18 +21,15 @@
 
 ## Overview
 
-Minecraft Bedrock Launcher is an unofficial Swift and SwiftUI app for running
-Minecraft: Bedrock Edition on macOS through the
-[`mcpelauncher`](https://github.com/minecraft-linux/mcpelauncher-manifest)
-runtime.
+Minecraft Bedrock Launcher is an unofficial native macOS app built with Swift
+and SwiftUI.
 
 > [!NOTE]
-> This project is only a macOS launcher around the existing `mcpelauncher`
-> runtime. Its responsibility is limited to the launcher UI, authentication,
-> downloads, installation, updates, and macOS integration. Game crashes,
-> graphics, input, audio, and Minecraft version compatibility are runtime
-> concerns and should be reported to the
-> [`mcpelauncher` project](https://github.com/minecraft-linux/mcpelauncher-manifest/issues).
+> Minecraft: Bedrock Edition runs through the existing `mcpelauncher` runtime;
+> this repository only covers the launcher UI, authentication, downloads,
+> installation, updates, and macOS integration. Game crashes, graphics, input,
+> audio, and Minecraft version compatibility should be reported to the
+> [`mcpelauncher`](https://github.com/minecraft-linux/mcpelauncher-manifest/issues) project.
 
 macOS 14 or newer and Apple Silicon are required.
 

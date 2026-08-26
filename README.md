@@ -26,6 +26,14 @@ Minecraft: Bedrock Edition on macOS through the
 [`mcpelauncher`](https://github.com/minecraft-linux/mcpelauncher-manifest)
 runtime.
 
+> [!NOTE]
+> This project is only a macOS launcher around the existing `mcpelauncher`
+> runtime. Its responsibility is limited to the launcher UI, authentication,
+> downloads, installation, updates, and macOS integration. Game crashes,
+> graphics, input, audio, and Minecraft version compatibility are runtime
+> concerns and should be reported to the
+> [`mcpelauncher` project](https://github.com/minecraft-linux/mcpelauncher-manifest/issues).
+
 macOS 14 or newer and Apple Silicon are required.
 
 ## Installation

@@ -45,7 +45,7 @@ struct ContentView: View {
                         if model.isQuickLaunchActive {
                             quickLaunchHint
                         }
-                        statusBar
+                        utilityBar
                     }
                     .transition(.opacity)
                 }

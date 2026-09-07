@@ -3,7 +3,6 @@ import AppKit
 @MainActor
 final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
     private enum ItemID {
-        static let status = NSTouchBarItem.Identifier("launcher.status")
         static let progress = NSTouchBarItem.Identifier("launcher.progress")
         static let cancel = NSTouchBarItem.Identifier("launcher.cancel")
         static let skip = NSTouchBarItem.Identifier("launcher.skip")
@@ -18,7 +17,6 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
     private var configuration: LauncherTouchBarConfiguration
     private weak var attachedWindow: NSWindow?
     private var touchBar: NSTouchBar?
-    private var statusView: LauncherTouchBarStatusView?
     private var progressView: LauncherTouchBarProgressView?
     private var primaryButton: NSButton?
     private var signInButton: NSButton?
@@ -55,8 +53,6 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
 
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
         switch identifier {
-        case ItemID.status:
-            return statusItem()
         case ItemID.progress:
             return progressItem()
         case ItemID.cancel:
@@ -165,10 +161,9 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
     }
 
     private func itemIdentifiers(for state: LauncherTouchBarState) -> [NSTouchBarItem.Identifier] {
-        var identifiers: [NSTouchBarItem.Identifier] = [ItemID.status]
+        var identifiers: [NSTouchBarItem.Identifier] = []
 
         if state.isProgressVisible {
-            identifiers.append(.fixedSpaceSmall)
             identifiers.append(ItemID.progress)
         }
 
@@ -203,17 +198,6 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
         }
 
         return identifiers
-    }
-
-    private func statusItem() -> NSTouchBarItem {
-        let item = NSCustomTouchBarItem(identifier: ItemID.status)
-        let view = statusView ?? LauncherTouchBarStatusView()
-        statusView = view
-        view.apply(configuration.state)
-        item.view = view
-        item.customizationLabel = configuration.state.statusLabel
-        item.visibilityPriority = .high
-        return item
     }
 
     private func skipItem() -> NSTouchBarItem {
@@ -330,7 +314,6 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
     }
 
     private func applyConfiguration() {
-        statusView?.apply(configuration.state)
         progressView?.apply(configuration.state)
         if let primaryButton {
             updatePrimaryButton(primaryButton, state: configuration.state)

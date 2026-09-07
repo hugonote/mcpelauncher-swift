@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import MinecraftBedrockLauncherCore
 
@@ -15,8 +14,6 @@ struct LauncherTouchBarConfiguration {
 }
 
 struct LauncherTouchBarState {
-    var statusLabel: String
-    var statusColor: NSColor
     var primaryTitle: String
     var primarySystemImage: String
     var isPrimaryDisabled: Bool
@@ -38,8 +35,6 @@ struct LauncherTouchBarState {
         let progressVisible = Self.isProgressVisible(model)
         let credentialAccessDenied = model.credentialAccessDenied
 
-        statusLabel = credentialAccessDenied ? "Keychain Access Needed" : Self.shortStatusText(model)
-        statusColor = Self.statusColor(model)
         primaryTitle = credentialAccessDenied ? "Retry" : Self.primaryButtonTitle(model)
         primarySystemImage = credentialAccessDenied ? "arrow.clockwise" : Self.primaryButtonIcon(model)
         isPrimaryDisabled = credentialAccessDenied ? false : Self.isPrimaryButtonDisabled(model)
@@ -279,7 +274,7 @@ struct LauncherTouchBarState {
         case .downloading:
             return "Downloading"
         case .missing, .ready, .failed:
-            return shortStatusText(model)
+            return "Working"
         }
     }
 
@@ -297,81 +292,8 @@ struct LauncherTouchBarState {
         case .fetchingLatest:
             return "Checking"
         case .idle, .installed, .failed:
-            return shortStatusText(model)
-        }
-    }
-
-    @MainActor
-    private static func statusColor(_ model: LauncherViewModel) -> NSColor {
-        if model.isBlockingNetworkUnavailable {
-            return .systemRed
-        }
-        if model.errorText != nil || model.runtimeState.phase == .failed || model.downloadState.phase == .failed {
-            return .systemRed
-        }
-        if model.updateWarningText != nil {
-            return .systemOrange
-        }
-        if model.isGooglePlayBusy || model.isRuntimeBusy || model.isImportingContent || model.isCheckingLauncherUpdates {
-            return .systemOrange
-        }
-        if LauncherTouchBarRules.isMinecraftUpdateAvailable(model) {
-            return .systemOrange
-        }
-        if model.canUseSelectedVersion && model.isRuntimeReady {
-            return .systemGreen
-        }
-        return .secondaryLabelColor
-    }
-
-    @MainActor
-    private static func shortStatusText(_ model: LauncherViewModel) -> String {
-        if model.isBlockingNetworkUnavailable {
-            return "No internet"
-        }
-        if model.activeIssue?.isNetworkUnavailable == true {
-            return "Offline"
-        }
-        if model.isRuntimeBusy && LauncherTouchBarRules.isRuntimeUpdateWork(model) {
-            return "Runtime update"
-        }
-        if model.isImportingContent {
-            return "Importing"
-        }
-        if model.isGooglePlayBusy || model.isRuntimeBusy {
             return "Working"
         }
-        if model.isCheckingLauncherUpdates {
-            return "Checking"
-        }
-        if model.downloadState.phase == .failed {
-            return "Download failed"
-        }
-        if model.runtimeState.phase == .failed {
-            return "Runtime failed"
-        }
-        if let errorText = model.errorText {
-            return model.activeIssue?.shortText ?? errorText
-        }
-        if let updateWarningText = model.updateWarningText {
-            return updateWarningText
-        }
-        if LauncherTouchBarRules.shouldFocusRuntime(model) {
-            return "Runtime missing"
-        }
-        if LauncherTouchBarRules.isMinecraftUpdateAvailable(model) {
-            return "Update available"
-        }
-        if model.canUseSelectedVersion && model.isRuntimeReady {
-            return "Ready"
-        }
-        if model.credential == nil {
-            return "Not signed in"
-        }
-        if model.latestVersion == nil {
-            return "Ready to check"
-        }
-        return "Not installed"
     }
 
     private static func formatETA(_ seconds: Double) -> String {
@@ -433,16 +355,6 @@ enum LauncherTouchBarRules {
             return false
         }
         return installed.versionCode != latest.versionCode
-    }
-
-    @MainActor
-    static func isRuntimeUpdateWork(_ model: LauncherViewModel) -> Bool {
-        switch model.runtimeState.phase {
-        case .downloading, .installing:
-            return model.runtimeState.version != nil
-        case .missing, .checking, .ready, .failed:
-            return false
-        }
     }
 }
 

@@ -23,10 +23,6 @@ enum TouchBarMetrics {
         ]
     }
 
-    static let statusCompactWidth: CGFloat = 104
-    static let statusFullWidth: CGFloat = 148
-    static let statusWideWidth: CGFloat = 184
-    static let statusHorizontalPadding: CGFloat = 8
     static let progressWidth: CGFloat = 336
     static let progressIndicatorWidth: CGFloat = 136
     static let progressPercentWidth: CGFloat = 44

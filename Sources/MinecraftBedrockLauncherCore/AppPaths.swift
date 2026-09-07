@@ -125,7 +125,6 @@ public enum LauncherError: Error, LocalizedError, Equatable {
     case runtimeChecksumMismatch(expected: String, actual: String)
     case insufficientDiskSpace(requiredBytes: Int64, availableBytes: Int64)
     case unsupportedMinecraftVersion(versionName: String, versionCode: Int, supportedVersionName: String?, supportedVersionCode: Int?)
-    case missingInstalledMinecraftVersion(URL)
     case gameLaunchFailed(status: Int32, logURL: URL?, outputTail: String)
     case unsupportedContentPack(URL)
     case contentPackImportFailed(URL, reason: String)
@@ -165,8 +164,6 @@ public enum LauncherError: Error, LocalizedError, Equatable {
                 return "\(versionName) (\(versionCode)) is not supported by the current macOS compatibility patch. Latest supported version is \(supportedVersionName) (\(supportedVersionCode))."
             }
             return "\(versionName) (\(versionCode)) is not supported by the current macOS compatibility patch."
-        case .missingInstalledMinecraftVersion(let url):
-            return "Minecraft is not installed at \(url.path). Install the game again."
         case .gameLaunchFailed(let status, let logURL, let outputTail):
             let logText = logURL.map { " Log: \($0.path)." } ?? ""
             let tailText = outputTail.isEmpty ? "" : " Last output: \(outputTail)"

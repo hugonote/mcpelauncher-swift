@@ -355,7 +355,7 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
 
     private static func primaryWidth(for title: String) -> CGFloat {
         switch title {
-        case "Download Runtime", "Switch Account":
+        case "Switch Account":
             return TouchBarMetrics.primaryWideWidth
         default:
             return TouchBarMetrics.primaryDefaultWidth

@@ -127,7 +127,7 @@ extension ContentView {
             return "Switch Account"
         }
         if shouldFocusRuntime {
-            return "Download Runtime"
+            return "Download"
         }
         if isMinecraftUpdateAvailable {
             return "Update"
@@ -136,7 +136,7 @@ extension ContentView {
             if model.isRuntimeReady {
                 return "Play"
             }
-            return "Download Runtime"
+            return "Download"
         }
         if model.credential == nil {
             return "Sign in"
@@ -184,8 +184,6 @@ extension ContentView {
 
     private var primaryButtonWidth: CGFloat {
         switch primaryButtonTitle {
-        case "Download Runtime":
-            return 172
         case "Switch Account":
             return 172
         default:

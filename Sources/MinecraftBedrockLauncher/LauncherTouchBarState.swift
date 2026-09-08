@@ -62,7 +62,7 @@ struct LauncherTouchBarState {
             return "Switch Account"
         }
         if LauncherTouchBarRules.shouldFocusRuntime(model) {
-            return "Download Runtime"
+            return "Download"
         }
         if LauncherTouchBarRules.isMinecraftUpdateAvailable(model) {
             return "Update"
@@ -71,7 +71,7 @@ struct LauncherTouchBarState {
             if model.isRuntimeReady {
                 return "Play"
             }
-            return "Download Runtime"
+            return "Download"
         }
         if model.credential == nil {
             return "Sign in"

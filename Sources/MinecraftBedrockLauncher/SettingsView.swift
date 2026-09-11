@@ -43,21 +43,21 @@ struct SettingsView: View {
                 VStack(spacing: 0) {
                     ToggleRow(
                         title: "Launcher",
-                        subtitle: "Keep this app current",
+                        subtitle: "Keep this app up to date",
                         systemImage: "arrow.down.app",
                         isOn: $automaticallyCheckLauncherUpdates
                     )
                     Divider()
                     ToggleRow(
                         title: "Runtime",
-                        subtitle: "Keep native components current",
+                        subtitle: "Keep native components up to date",
                         systemImage: "cpu",
                         isOn: $automaticallyCheckRuntimeUpdates
                     )
                     Divider()
                     MenuPickerRow(
                         title: "Minecraft",
-                        subtitle: "Game updates",
+                        subtitle: "Keep Minecraft up to date",
                         systemImage: "cube",
                         selection: minecraftUpdateModeBinding,
                         options: [
@@ -85,7 +85,7 @@ struct SettingsView: View {
                     Divider()
                     ToggleRow(
                         title: "Status Bar",
-                        subtitle: "Show runtime controls in Minecraft",
+                        subtitle: "Show runtime menu in Minecraft",
                         systemImage: "menubar.rectangle",
                         isOn: $showInGameStatusBar
                     )
@@ -151,7 +151,7 @@ struct SettingsView: View {
             }
         }
         .padding(16)
-        .frame(width: 390)
+        .frame(width: 350)
         .onExitCommand {
             dismiss()
         }

@@ -55,7 +55,7 @@ struct SettingsView: View {
                         isOn: $automaticallyCheckRuntimeUpdates
                     )
                     Divider()
-                    SegmentedRow(
+                    MenuPickerRow(
                         title: "Minecraft",
                         subtitle: "Game updates",
                         systemImage: "cube",
@@ -97,7 +97,7 @@ struct SettingsView: View {
                         isOn: $vSyncEnabled
                     )
                     Divider()
-                    SegmentedRow(
+                    MenuPickerRow(
                         title: "FPS Counter",
                         subtitle: "Frame rate overlay",
                         systemImage: "speedometer",

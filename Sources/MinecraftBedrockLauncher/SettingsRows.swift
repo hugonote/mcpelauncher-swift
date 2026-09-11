@@ -34,7 +34,7 @@ struct ToggleRow: View {
     }
 }
 
-struct SegmentedRow: View {
+struct MenuPickerRow: View {
     struct Option: Identifiable {
         var title: String
         var value: Int
@@ -49,7 +49,6 @@ struct SegmentedRow: View {
     var systemImage: String
     @Binding var selection: Int
     var options: [Option]
-    var pickerWidth: CGFloat = 176
     var isDisabled = false
 
     var body: some View {
@@ -77,8 +76,8 @@ struct SegmentedRow: View {
                 }
             }
             .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: pickerWidth)
+            .pickerStyle(.menu)
+            .fixedSize()
             .disabled(isDisabled)
         }
         .padding(.horizontal, 10)

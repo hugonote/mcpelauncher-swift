@@ -344,7 +344,7 @@ enum LauncherTouchBarRules {
         !model.isRuntimeReady
             && !model.isRuntimeBusy
             && model.runtimeState.phase != .checking
-            && model.credential != nil
+            && model.canDownloadRuntime
     }
 
     @MainActor

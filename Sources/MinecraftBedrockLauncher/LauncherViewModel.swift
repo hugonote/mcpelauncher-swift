@@ -140,6 +140,7 @@ final class LauncherViewModel: ObservableObject {
     var didStart = false
     var didContinueStartupAfterWindowReveal = false
     var didTryLoadingStoredCredential = false
+    var hasVerifiedMinecraftAccess = false
     var runtimeUpdateTask: Task<Void, Never>?
     var runtimeSkipDelayTask: Task<Void, Never>?
     var quickLaunchTask: Task<Void, Never>?
@@ -158,6 +159,10 @@ final class LauncherViewModel: ObservableObject {
     var activeContentImportURLs: [URL] = []
     var pendingContentImportURLs: [URL] = []
     var completedContentImportFileCount = 0
+
+    var canDownloadRuntime: Bool {
+        selectedVersion != nil || hasVerifiedMinecraftAccess
+    }
 
     init(
         paths: AppPaths? = nil,

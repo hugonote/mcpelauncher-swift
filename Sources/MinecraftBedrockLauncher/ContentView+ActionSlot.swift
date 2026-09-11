@@ -116,6 +116,10 @@ extension ContentView {
             model.showingLogin = true
             return
         }
+        if !model.canDownloadRuntime {
+            await model.fetchLatest()
+            return
+        }
         model.startDownloadAndInstallLatest()
     }
 
@@ -221,7 +225,7 @@ extension ContentView {
         !model.isRuntimeReady
             && !model.isRuntimeBusy
             && model.runtimeState.phase != .checking
-            && model.credential != nil
+            && model.canDownloadRuntime
     }
 
     var isMinecraftUpdateAvailable: Bool {

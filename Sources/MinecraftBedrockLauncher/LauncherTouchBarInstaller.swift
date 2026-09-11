@@ -66,6 +66,10 @@ struct LauncherTouchBarInstaller: View {
             model.showingLogin = true
             return
         }
+        if !model.canDownloadRuntime {
+            await model.fetchLatest()
+            return
+        }
         model.startDownloadAndInstallLatest()
     }
 

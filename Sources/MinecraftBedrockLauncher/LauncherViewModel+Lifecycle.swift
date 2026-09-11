@@ -29,6 +29,19 @@ extension LauncherViewModel {
         }
         didContinueStartupAfterWindowReveal = true
 
+        let checkedGameBeforeRuntime = selectedVersion == nil
+        if checkedGameBeforeRuntime {
+            guard credential != nil,
+                  LauncherPreferences.canAutomaticallyCheckGameUpdates,
+                  shouldRunAutomaticGameUpdateCheck() else {
+                return
+            }
+            await fetchLatest()
+            guard hasVerifiedMinecraftAccess else {
+                return
+            }
+        }
+
         if LauncherPreferences.automaticallyCheckRuntimeUpdates {
             startAutomaticRuntimeUpdate()
             let updateTask = runtimeUpdateTask
@@ -41,6 +54,15 @@ extension LauncherViewModel {
             return
         }
         guard LauncherPreferences.canAutomaticallyCheckGameUpdates else {
+            return
+        }
+        if checkedGameBeforeRuntime {
+            guard shouldRunAutomaticGameUpdateCheck() else {
+                return
+            }
+            if installsAutomaticGameUpdates && LauncherPreferences.canAutomaticallyInstallGameUpdates {
+                _ = await installAutomaticGameUpdateIfNeeded()
+            }
             return
         }
         guard shouldRunAutomaticGameUpdateCheck() else {
@@ -245,6 +267,10 @@ extension LauncherViewModel {
 
         if selectedVersion == nil {
             guard credential != nil else {
+                return
+            }
+            await fetchLatest()
+            guard hasVerifiedMinecraftAccess else {
                 return
             }
             if !isRuntimeReady {

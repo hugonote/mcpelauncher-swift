@@ -143,6 +143,9 @@ extension LauncherViewModel {
         phase: RuntimePhase,
         allowsSkip: Bool = false
     ) async {
+        guard canDownloadRuntime else {
+            return
+        }
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
         let coordinator = RuntimeInstallCoordinator(manager: manager)
         let updateID = UUID()
@@ -321,6 +324,21 @@ extension LauncherViewModel {
         let updateTask = runtimeUpdateTask
         await updateTask?.value
         return runtimePathForReadyRuntime() != nil
+    }
+
+    func cancelUnusedRuntimeUpdate() {
+        guard selectedVersion == nil,
+              runtimeState.phase != .installing else {
+            return
+        }
+        activeRuntimeUpdateID = nil
+        runtimeUpdateTask?.cancel()
+        runtimeUpdateTask = nil
+        runtimeSkipDelayTask?.cancel()
+        runtimeSkipDelayTask = nil
+        canSkipRuntimeUpdateCheck = false
+        lastRuntimeProgressUpdate = nil
+        refreshInstalledRuntimeState()
     }
 
     private func runtimeURL() -> URL {

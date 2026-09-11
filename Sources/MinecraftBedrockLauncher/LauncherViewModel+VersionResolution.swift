@@ -16,8 +16,9 @@ struct DownloadableVersionResolution {
 
 extension LauncherViewModel {
     func fetchLatest() async {
-        guard runtimePathForReadyRuntime() != nil else {
-            return
+        let verifiesMinecraftAccess = selectedVersion == nil
+        if verifiesMinecraftAccess {
+            hasVerifiedMinecraftAccess = false
         }
         let checkID = beginGameUpdateCheck()
         defer {
@@ -38,21 +39,13 @@ extension LauncherViewModel {
             guard isActiveGameUpdateCheck(checkID) else {
                 return
             }
+            if verifiesMinecraftAccess {
+                hasVerifiedMinecraftAccess = true
+            }
             applyVersionResolution(resolution)
             let latest = resolution.reportedLatest
             let downloadable = resolution.downloadable
             latestVersion = downloadable
-            if selectedVersion == nil {
-                downloadState = DownloadState(
-                    versionName: downloadable.versionName,
-                    phase: .fetchingLatest,
-                    detail: "Checking purchase"
-                )
-                try await checkDownloadAccess(for: downloadable, credential: credential)
-                guard isActiveGameUpdateCheck(checkID) else {
-                    return
-                }
-            }
             downloadState = DownloadState(versionName: downloadable.versionName)
             errorText = nil
             if selectedVersion?.versionCode == downloadable.versionCode
@@ -74,12 +67,16 @@ extension LauncherViewModel {
     }
 
     func refreshVersionInfo() async {
+        let checkedGameBeforeRuntime = selectedVersion == nil && credential != nil
+        if checkedGameBeforeRuntime {
+            await fetchLatest()
+        }
         if !isRuntimeBusy {
             startAutomaticRuntimeUpdate()
         }
         let updateTask = runtimeUpdateTask
         await updateTask?.value
-        guard credential != nil else {
+        guard credential != nil, !checkedGameBeforeRuntime else {
             return
         }
         await fetchLatest()
@@ -138,6 +135,14 @@ extension LauncherViewModel {
             latest = try await supportedVersionFallback(after: error)
             usedSupportedFallback = true
         }
+        if selectedVersion == nil {
+            downloadState = DownloadState(
+                versionName: latest.versionName,
+                phase: .fetchingLatest,
+                detail: "Checking purchase"
+            )
+            try await checkDownloadAccess(for: latest, credential: credential)
+        }
         let downloadableResolution = try await downloadableVersionResolution(for: latest)
         return MinecraftVersionResolution(
             reportedLatest: latest,
@@ -152,8 +157,8 @@ extension LauncherViewModel {
         guard canUseSupportedVersionFallback(after: error) else {
             throw error
         }
-        let metadata = try await ensureCompatibilityPatch()
-        guard let supported = metadata.newestSupportedVersion else {
+        let release = try await CompatibilityPatchManager(paths: paths, processRunner: processRunner).resolveLatestPatch()
+        guard let supported = release.supportedVersions.max(by: { $0.versionCode < $1.versionCode }) else {
             throw error
         }
         return LatestVersion(

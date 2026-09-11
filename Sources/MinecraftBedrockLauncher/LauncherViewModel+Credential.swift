@@ -59,6 +59,12 @@ extension LauncherViewModel {
     func signOut() {
         do {
             try credentialStore.clearCredential()
+            if activeDownloadID != nil || isGooglePlayBusy {
+                cancelActiveDownloadWork()
+            }
+            activeGameUpdateCheckID = nil
+            hasVerifiedMinecraftAccess = false
+            cancelUnusedRuntimeUpdate()
             let legacyStateCleanupSucceeded = clearLegacyGooglePlayStateForSignOut()
             credential = nil
             didTryLoadingStoredCredential = false
@@ -80,6 +86,7 @@ extension LauncherViewModel {
     func completeLogin(email: String, userID: String, oauthToken: String) async -> Bool {
         do {
             try Task.checkCancellation()
+            hasVerifiedMinecraftAccess = false
             errorText = nil
             updateWarningText = nil
             downloadState = DownloadState(phase: .authenticating)
@@ -99,6 +106,12 @@ extension LauncherViewModel {
             downloadState = DownloadState()
             errorText = nil
             await fetchLatest()
+            if selectedVersion == nil,
+               hasVerifiedMinecraftAccess,
+               LauncherPreferences.automaticallyCheckRuntimeUpdates,
+               !isRuntimeBusy {
+                startAutomaticRuntimeUpdate()
+            }
             return true
         } catch is CancellationError {
             if downloadState.phase == .authenticating {

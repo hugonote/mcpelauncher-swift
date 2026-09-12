@@ -403,10 +403,8 @@ struct MinecraftBedrockLauncherApp: App {
             }
 
             CommandMenu("Game") {
-                Button {
+                Button("Play") {
                     Task { await model.playSelected(captureLog: false) }
-                } label: {
-                    Label("Play", systemImage: "play.fill")
                 }
                 .disabled(!canPlayFromGameMenu)
 
@@ -425,10 +423,8 @@ struct MinecraftBedrockLauncherApp: App {
                     Text("Open Data Folder")
                 }
 
-                Button {
+                Button("Import Minecraft Content...") {
                     ContentImportOpenFileQueue.shared.requestOpenPanel()
-                } label: {
-                    Label("Import Minecraft Content...", systemImage: "square.and.arrow.down")
                 }
             }
         }

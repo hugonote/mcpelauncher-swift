@@ -8,7 +8,7 @@ struct PendingGameLaunch {
 
 extension LauncherViewModel {
     func playSelected(captureLog: Bool = false, allowsRunningGame: Bool = false) async {
-        guard !isGameLaunchBlocked else {
+        guard validateLauncherBundle(), !isGameLaunchBlocked else {
             return
         }
         do {

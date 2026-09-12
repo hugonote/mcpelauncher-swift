@@ -3,12 +3,23 @@ import MinecraftBedrockLauncherCore
 
 extension LauncherViewModel {
     func start() async {
-        guard !didStart else {
+        guard !didStart, validateLauncherBundle() else {
             return
         }
         didStart = true
         await load(startsAutomaticRuntimeUpdate: false)
         await loadStoredCredential()
+    }
+
+    func validateLauncherBundle() -> Bool {
+        guard !LauncherBundleValidator.isIncomplete(
+            at: Bundle.main.bundleURL,
+            resourcesAvailable: Bundle.launcherResources != nil
+        ) else {
+            reduceError(.setIssue(.bundledHelperMissing))
+            return false
+        }
+        return true
     }
 
     func continueStartupAfterWindowReveal() async {

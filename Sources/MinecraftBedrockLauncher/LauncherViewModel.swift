@@ -88,7 +88,8 @@ final class LauncherViewModel: ObservableObject {
     }
 
     var isGameLaunchBlocked: Bool {
-        isGooglePlayBusy || isRuntimeBusy || isLaunchingGame || isImportingContent || isCheckingLauncherUpdates
+        activeIssue == .bundledHelperMissing
+            || isGooglePlayBusy || isRuntimeBusy || isLaunchingGame || isImportingContent || isCheckingLauncherUpdates
     }
 
     var isRuntimeReady: Bool {
@@ -108,7 +109,8 @@ final class LauncherViewModel: ObservableObject {
     }
 
     var canStartQuickLaunch: Bool {
-        !credentialAccessDenied
+        activeIssue != .bundledHelperMissing
+            && !credentialAccessDenied
             && (selectedVersion != nil
                 || (credential != nil && LauncherPreferences.canAutomaticallyInstallGameUpdates))
     }

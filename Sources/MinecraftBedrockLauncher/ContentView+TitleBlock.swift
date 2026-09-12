@@ -142,7 +142,7 @@ extension ContentView {
     private var titleIcon: some View {
         ZStack(alignment: .bottomTrailing) {
             if shouldUseBedrockIcon {
-                if let image = Bundle.launcherResources.image(
+                if let image = Bundle.launcherResources?.image(
                     forResource: "cut-bedrock-launcher-icon-foreground-transparent"
                 ) {
                     Image(nsImage: image)

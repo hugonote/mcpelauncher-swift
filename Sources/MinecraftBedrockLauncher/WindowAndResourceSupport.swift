@@ -2,10 +2,14 @@ import AppKit
 import SwiftUI
 
 extension Bundle {
-    static let launcherResources = Bundle.main
-        .url(forResource: "SwiftLauncher_MinecraftBedrockLauncher", withExtension: "bundle")
-        .flatMap(Bundle.init(url:))
-        ?? .module
+    static let launcherResources: Bundle? = {
+        if let bundle = Bundle.main
+            .url(forResource: "SwiftLauncher_MinecraftBedrockLauncher", withExtension: "bundle")
+            .flatMap(Bundle.init(url:)) {
+            return bundle
+        }
+        return Bundle.main.bundleURL.pathExtension == "app" ? nil : .module
+    }()
 }
 
 struct VisualEffectBackground: NSViewRepresentable {

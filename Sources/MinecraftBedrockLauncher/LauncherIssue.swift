@@ -149,16 +149,12 @@ enum LauncherIssue: Equatable {
     }
 
     private static func isBundledHelperMissing(_ message: String) -> Bool {
-        let helperNames = [
-            "mcpelauncher-ui-qt",
-            "mcpelauncher-webview"
-        ]
         let missingMarkers = [
             "was not found",
             "not found",
             "no such file"
         ]
-        return helperNames.contains { helperName in
+        return LauncherBundleValidator.requiredHelperNames.contains { helperName in
             message.localizedCaseInsensitiveContains(helperName)
         } && missingMarkers.contains { marker in
             message.localizedCaseInsensitiveContains(marker)

@@ -30,7 +30,7 @@ extension ContentView {
                     .font(.body.weight(.semibold))
                     .frame(width: primaryButtonWidth)
             }
-            .buttonStyle(.borderedProminent)
+            .launcherProminentButtonStyle()
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
             .disabled(isPrimaryButtonDisabled)
@@ -65,24 +65,14 @@ extension ContentView {
         } label: {
             Image(systemName: "play.fill")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 30, height: 30)
-                .background {
-                    Circle()
-                        .fill(.regularMaterial)
-                }
-                .overlay {
-                    Circle()
-                        .strokeBorder(.secondary.opacity(0.22), lineWidth: 1)
-                }
-                .contentShape(Circle())
+                .frame(width: 16, height: 18)
         }
-        .buttonStyle(.plain)
-        .frame(width: 30, height: 30)
+        .launcherButtonStyle()
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
         .fixedSize()
         .help("Play installed version")
         .disabled(isDisabled)
-        .opacity(isDisabled ? 0.45 : 1)
     }
 
     private func primaryAction() async {
@@ -250,5 +240,25 @@ extension ContentView {
             && !isMinecraftUpdateAvailable
             && model.canUseSelectedVersion
             && model.isRuntimeReady
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func launcherProminentButtonStyle() -> some View {
+        if #available(macOS 26.0, *) {
+            buttonStyle(.glassProminent)
+        } else {
+            buttonStyle(.borderedProminent)
+        }
+    }
+
+    @ViewBuilder
+    func launcherButtonStyle() -> some View {
+        if #available(macOS 26.0, *) {
+            buttonStyle(.glass)
+        } else {
+            buttonStyle(.bordered)
+        }
     }
 }

@@ -32,7 +32,7 @@ extension ContentView {
                     .font(.body.weight(.semibold))
                     .frame(width: compactButtonWidth)
             }
-            .buttonStyle(.borderedProminent)
+            .launcherProminentButtonStyle()
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
         }
@@ -66,7 +66,7 @@ extension ContentView {
                     .font(.body.weight(.semibold))
                     .frame(width: compactButtonWidth)
             }
-            .buttonStyle(.borderedProminent)
+            .launcherProminentButtonStyle()
             .controlSize(.large)
         }
         .offset(y: -18)

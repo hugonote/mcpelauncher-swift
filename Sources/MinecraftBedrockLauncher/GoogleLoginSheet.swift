@@ -61,6 +61,7 @@ struct GoogleLoginSheet: View {
                         completionFailed = false
                         completeAfterGoogleSettles()
                     }
+                    .launcherProminentButtonStyle()
                 }
             }
         }

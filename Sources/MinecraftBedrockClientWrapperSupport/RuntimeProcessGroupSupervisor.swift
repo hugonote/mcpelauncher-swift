@@ -17,7 +17,7 @@ public struct RuntimeProcessGroupSupervisor {
 
     public init(
         runtimeChildCheckInterval: TimeInterval = 2,
-        shutdownGracePeriod: TimeInterval = 5,
+        shutdownGracePeriod: TimeInterval = 1,
         terminationGracePeriod: TimeInterval = 3
     ) {
         self.init(
@@ -31,7 +31,7 @@ public struct RuntimeProcessGroupSupervisor {
     init(
         system: any RuntimeProcessGroupSupervisionSystem,
         runtimeChildCheckInterval: TimeInterval = 2,
-        shutdownGracePeriod: TimeInterval = 5,
+        shutdownGracePeriod: TimeInterval = 1,
         terminationGracePeriod: TimeInterval = 3
     ) {
         self.system = system

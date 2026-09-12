@@ -66,7 +66,7 @@ final class RuntimeProcessGroupSupervisorTests: XCTestCase {
         )
 
         XCTAssertEqual(system.waitedProcessIdentifiers, [70])
-        XCTAssertEqual(system.sleepIntervals, [5])
+        XCTAssertEqual(system.sleepIntervals, [1])
         XCTAssertTrue(system.signals.isEmpty)
         XCTAssertEqual(system.processGroupSignals, [
             GroupSignal(processGroupID: 70, value: SIGTERM)
@@ -88,7 +88,7 @@ final class RuntimeProcessGroupSupervisorTests: XCTestCase {
         )
 
         XCTAssertTrue(didRunExitHandler)
-        XCTAssertEqual(system.sleepIntervals, [5])
+        XCTAssertEqual(system.sleepIntervals, [1])
     }
 }
 

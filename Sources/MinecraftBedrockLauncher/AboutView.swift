@@ -57,7 +57,7 @@ struct AboutView: View {
     }
 
     private var thirdPartyNoticesURL: URL {
-        Bundle.main.url(forResource: "ThirdPartyNotices", withExtension: "txt")
+        Bundle.launcherResources.url(forResource: "ThirdPartyNotices", withExtension: "txt")
             ?? projectURL
     }
 

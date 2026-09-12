@@ -142,8 +142,10 @@ extension ContentView {
     private var titleIcon: some View {
         ZStack(alignment: .bottomTrailing) {
             if shouldUseBedrockIcon {
-                if let bedrockIconImage {
-                    Image(nsImage: bedrockIconImage)
+                if let image = Bundle.launcherResources.image(
+                    forResource: "cut-bedrock-launcher-icon-foreground-transparent"
+                ) {
+                    Image(nsImage: image)
                         .resizable()
                         .scaledToFit()
                         .frame(width: 60, height: 60)
@@ -215,10 +217,6 @@ extension ContentView {
 
     var shouldUseBedrockIcon: Bool {
         !isPurchaseRequired && !shouldShowRuntimeTitle
-    }
-
-    private var bedrockIconImage: NSImage? {
-        LauncherResourceLoader.image(named: "cut-bedrock-launcher-icon-foreground-transparent", fileExtension: "png")
     }
 
     private var titleIconColor: Color {

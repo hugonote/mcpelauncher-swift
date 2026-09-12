@@ -63,8 +63,6 @@ fi
 
 cp "$ICON_COMPILE_DIR/Assets.car" "$APP_DIR/Contents/Resources/Assets.car"
 cp "$ICON_COMPILE_DIR/$APP_ICON_NAME.icns" "$APP_DIR/Contents/Resources/$APP_ICON_NAME.icns"
-cp "$PACKAGE_DIR/Resources/cut-bedrock-launcher-icon-foreground-transparent.png" "$APP_DIR/Contents/Resources/cut-bedrock-launcher-icon-foreground-transparent.png"
-cp "$PACKAGE_DIR/Resources/ThirdPartyNotices.txt" "$APP_DIR/Contents/Resources/ThirdPartyNotices.txt"
 cp "$PACKAGE_DIR/LICENSE" "$APP_DIR/Contents/Resources/Licenses/Minecraft-Bedrock-Launcher-MIT.txt"
 
 install -m 755 "$BUILD_DIR/MinecraftBedrockLauncher" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"

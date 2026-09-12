@@ -32,9 +32,3 @@ Downloaded components:
 - mcpelauncher compatibility patches
   Downloaded separately when needed.
   Upstream: https://github.com/minecraft-linux/mcpelauncher-moddb
-
-Release app bundles produced by this repository do not include the
-mcpelauncher runtime.
-
-Full license texts for bundled components are included in the app bundle when
-available at build time under Contents/Resources/Licenses.

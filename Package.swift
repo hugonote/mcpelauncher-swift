@@ -41,6 +41,9 @@ let package = Package(
             dependencies: [
                 "MinecraftBedrockLauncherCore",
                 .product(name: "Sparkle", package: "Sparkle")
+            ],
+            resources: [
+                .process("Resources")
             ]
         ),
         .executableTarget(

@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+extension Bundle {
+    static let launcherResources = Bundle.main
+        .url(forResource: "SwiftLauncher_MinecraftBedrockLauncher", withExtension: "bundle")
+        .flatMap(Bundle.init(url:))
+        ?? .module
+}
+
 struct VisualEffectBackground: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
@@ -14,52 +21,6 @@ struct VisualEffectBackground: NSViewRepresentable {
         view.material = .hudWindow
         view.blendingMode = .behindWindow
         view.state = .active
-    }
-}
-
-enum LauncherResourceLoader {
-    static func image(named name: String, fileExtension: String) -> NSImage? {
-        for url in candidateURLs(named: name, fileExtension: fileExtension) {
-            if let image = NSImage(contentsOf: url) {
-                return image
-            }
-        }
-        return nil
-    }
-
-    private static func candidateURLs(named name: String, fileExtension: String) -> [URL] {
-        let fileName = "\(name).\(fileExtension)"
-        var urls: [URL] = []
-
-        if let url = Bundle.main.url(forResource: name, withExtension: fileExtension) {
-            urls.append(url)
-        }
-
-        let resourceURL = Bundle.main.resourceURL
-        let bundleNames = [
-            "SwiftLauncher_MinecraftBedrockLauncher.bundle",
-            "MinecraftBedrockLauncher_MinecraftBedrockLauncher.bundle"
-        ]
-        for bundleName in bundleNames {
-            if let url = resourceURL?
-                .appendingPathComponent(bundleName, isDirectory: true)
-                .appendingPathComponent(fileName, isDirectory: false) {
-                urls.append(url)
-            }
-        }
-
-        if let executableURL = Bundle.main.executableURL {
-            let buildDirectoryURL = executableURL.deletingLastPathComponent()
-            for bundleName in bundleNames {
-                urls.append(
-                    buildDirectoryURL
-                        .appendingPathComponent(bundleName, isDirectory: true)
-                        .appendingPathComponent(fileName, isDirectory: false)
-                )
-            }
-        }
-
-        return urls
     }
 }
 

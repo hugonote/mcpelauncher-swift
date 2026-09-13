@@ -73,29 +73,34 @@ extension ContentView {
     }
 
     var networkUnavailableView: some View {
-        VStack(spacing: 12) {
-            OfflineGlobeView()
-                .accessibilityHidden(true)
+        VStack(spacing: 18) {
+            VStack(spacing: 6) {
+                OfflineGlobeView()
+                    .accessibilityHidden(true)
 
-            VStack(spacing: 5) {
-                Text("No Internet Connection")
-                    .font(.title3.weight(.semibold))
-                Text(networkUnavailableMessage)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 276)
+                VStack(spacing: 5) {
+                    Text("No Internet Connection")
+                        .font(.title3.weight(.semibold))
+                    Text(networkUnavailableMessage)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 276)
+                }
             }
 
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Waiting for connection")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(.secondary)
+            Button {
+                Task { await model.retryBlockingNetworkUnavailableIfNeeded() }
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .font(.body.weight(.semibold))
+                    .frame(width: compactButtonWidth)
             }
+            .launcherProminentButtonStyle()
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
             .frame(height: 32)
         }
         .offset(y: -26)

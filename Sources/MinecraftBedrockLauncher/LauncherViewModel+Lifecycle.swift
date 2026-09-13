@@ -265,7 +265,7 @@ extension LauncherViewModel {
         networkMonitor.start(queue: networkMonitorQueue)
     }
 
-    private func retryBlockingNetworkUnavailableIfNeeded() async {
+    func retryBlockingNetworkUnavailableIfNeeded() async {
         guard isBlockingNetworkUnavailable,
               !isGooglePlayBusy,
               !isRuntimeBusy else {

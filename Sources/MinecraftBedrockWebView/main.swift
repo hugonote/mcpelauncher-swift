@@ -15,7 +15,7 @@ final class LoginWindowController: NSObject, NSApplicationDelegate, WKNavigation
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
+        NSApp.setActivationPolicy(.accessory)
 
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()

@@ -136,11 +136,6 @@ extension LauncherViewModel {
             usedSupportedFallback = true
         }
         if selectedVersion == nil {
-            downloadState = DownloadState(
-                versionName: latest.versionName,
-                phase: .fetchingLatest,
-                detail: "Checking purchase"
-            )
             try await checkDownloadAccess(for: latest, credential: credential)
         }
         let downloadableResolution = try await downloadableVersionResolution(for: latest)

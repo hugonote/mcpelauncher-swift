@@ -9,7 +9,7 @@ extension ContentView {
             Button {
                 presentContentImportPanel()
             } label: {
-                Image(systemName: "square.and.arrow.down")
+                Image(systemName: "arrow.down.app.dashed")
             }
             .buttonStyle(.borderless)
             .help("Import Minecraft content")

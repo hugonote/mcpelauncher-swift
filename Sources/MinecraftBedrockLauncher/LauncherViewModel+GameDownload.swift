@@ -44,13 +44,21 @@ extension LauncherViewModel {
         }
     }
 
-    func startDownloadAndInstallLatest() {
+    @discardableResult
+    func startDownloadAndInstallLatest() -> Task<Bool, Never> {
         let downloadID = UUID()
         activeDownloadID = downloadID
         activeDownloadTask?.cancel()
-        activeDownloadTask = Task { [weak self] in
-            _ = await self?.downloadAndInstallLatest(downloadID: downloadID)
+        let task = Task { [weak self] in
+            guard let self else { return false }
+            let installed = await self.downloadAndInstallLatest(downloadID: downloadID)
+            if Task.isCancelled, self.activeDownloadID == downloadID {
+                self.cancelActiveDownloadWork()
+            }
+            return installed
         }
+        activeDownloadTask = task
+        return task
     }
 
     func installAutomaticGameUpdateIfNeeded() async -> Bool {
@@ -135,7 +143,16 @@ extension LauncherViewModel {
     }
 
     private func downloadAndInstallLatest(downloadID: UUID) async -> Bool {
-        guard await ensureRuntimeReadyForGameWork() else {
+        if !canDownloadRuntime {
+            await fetchLatest()
+            guard activeDownloadID == downloadID, canDownloadRuntime, !Task.isCancelled else {
+                if activeDownloadID == downloadID {
+                    activeDownloadID = nil
+                }
+                return false
+            }
+        }
+        guard await ensureRuntimeReadyForGameWork(), activeDownloadID == downloadID, !Task.isCancelled else {
             if activeDownloadID == downloadID {
                 activeDownloadID = nil
                 activeDownloadOutputURL = nil

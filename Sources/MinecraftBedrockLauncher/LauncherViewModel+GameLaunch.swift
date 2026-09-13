@@ -22,7 +22,15 @@ extension LauncherViewModel {
                 let installedVersions = (try? registry.load()) ?? []
                 self.selectedVersion = installedVersions.first
                 try? registry.save(installedVersions)
-                startDownloadAndInstallLatest()
+                let downloadTask = startDownloadAndInstallLatest()
+                let installed = await withTaskCancellationHandler {
+                    await downloadTask.value
+                } onCancel: {
+                    downloadTask.cancel()
+                }
+                if installed, !Task.isCancelled {
+                    await playSelected(captureLog: captureLog, allowsRunningGame: allowsRunningGame)
+                }
                 return
             }
             if !allowsRunningGame, isMinecraftAlreadyRunning {
@@ -72,6 +80,7 @@ extension LauncherViewModel {
                 clientWrapperExecutableURL: clientWrapperExecutableURL,
                 clientWrapperIconURL: clientWrapperIconURL
             )
+            NSApplication.shared.setActivationPolicy(.accessory)
             NSApplication.shared.terminate(nil)
             errorText = nil
         } catch {

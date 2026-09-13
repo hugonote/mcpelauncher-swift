@@ -154,7 +154,7 @@ final class LauncherViewModel: ObservableObject {
     var lastDownloadProgressBytes: Int64 = 0
     var lastRuntimeProgressUpdate: Date?
     var downloadStallTask: Task<Void, Never>?
-    var activeDownloadTask: Task<Void, Never>?
+    var activeDownloadTask: Task<Bool, Never>?
     var activeDownloadID: UUID?
     var activeDownloadOutputURL: URL?
     var pendingRunningGameLaunch: PendingGameLaunch?

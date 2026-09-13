@@ -1,6 +1,24 @@
 import SwiftUI
 import WebKit
 
+final class WebLoginContainerView: NSView {
+    let webView: WKWebView
+
+    init(webView: WKWebView) {
+        self.webView = webView
+        super.init(frame: .zero)
+        webView.frame = bounds
+        webView.autoresizingMask = [.width, .height]
+        addSubview(webView)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override func keyDown(with event: NSEvent) {}
+}
+
 struct WebLoginView: NSViewRepresentable {
     static let defaultURL = URL(string: "https://accounts.google.com/embedded/setup/v2/android?source=com.android.settings&xoauth_display_name=Android%20Phone&canFrp=1&canSk=1&lang=en&langCountry=en_us&hl=en-US&cc=us")!
 
@@ -18,7 +36,7 @@ struct WebLoginView: NSViewRepresentable {
         )
     }
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeNSView(context: Context) -> WebLoginContainerView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.websiteDataStore.httpCookieStore.add(context.coordinator)
@@ -28,12 +46,13 @@ struct WebLoginView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.cookieStore = configuration.websiteDataStore.httpCookieStore
         webView.load(URLRequest(url: Self.defaultURL))
-        return webView
+        return WebLoginContainerView(webView: webView)
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {}
+    func updateNSView(_ container: WebLoginContainerView, context: Context) {}
 
-    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+    static func dismantleNSView(_ container: WebLoginContainerView, coordinator: Coordinator) {
+        let webView = container.webView
         webView.stopLoading()
         webView.configuration.websiteDataStore.httpCookieStore.remove(coordinator)
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "googleLogin")

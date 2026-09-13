@@ -215,8 +215,7 @@ struct ContentView: View {
 
         Continue only if you know why you need another copy.
         """
-        let cancelButton = alert.addButton(withTitle: "Cancel")
-        cancelButton.keyEquivalent = "\r"
+        alert.addButton(withTitle: "Cancel")
         let launchButton = alert.addButton(withTitle: "Launch Anyway")
         launchButton.keyEquivalent = ""
         launchButton.hasDestructiveAction = true

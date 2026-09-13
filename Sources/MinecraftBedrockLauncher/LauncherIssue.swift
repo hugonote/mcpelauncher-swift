@@ -11,6 +11,8 @@ enum LauncherIssue: Equatable {
     case bundledHelperMissing
     case runtimeChecksumMismatch
     case runtimeFailed
+    case gameLaunchFailed
+    case insufficientDiskSpace
     case generic
 
     init(error: Error) {
@@ -62,6 +64,10 @@ enum LauncherIssue: Equatable {
             return "Runtime checksum mismatch"
         case .runtimeFailed:
             return "Runtime failed"
+        case .gameLaunchFailed:
+            return "Could not start Minecraft"
+        case .insufficientDiskSpace:
+            return "Not enough disk space"
         case .generic:
             return nil
         }
@@ -85,6 +91,10 @@ enum LauncherIssue: Equatable {
             return "Checksum mismatch"
         case .runtimeFailed:
             return "Runtime failed"
+        case .gameLaunchFailed:
+            return "Could not start Minecraft"
+        case .insufficientDiskSpace:
+            return "Not enough disk space"
         case .generic:
             return nil
         }
@@ -117,6 +127,10 @@ enum LauncherIssue: Equatable {
             return .runtimeChecksumMismatch
         case .runtimeInstallFailed:
             return .runtimeFailed
+        case .gameLaunchFailed:
+            return .gameLaunchFailed
+        case .insufficientDiskSpace:
+            return .insufficientDiskSpace
         default:
             return issue(forMessage: error.localizedDescription)
         }

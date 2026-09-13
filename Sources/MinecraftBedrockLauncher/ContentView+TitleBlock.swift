@@ -66,7 +66,7 @@ extension ContentView {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(subtitleLineLimit)
-                .help(versionText)
+                .help(subtitleMessage?.detail ?? versionText)
 
             if shouldShowVersionInfoButton {
                 Button {
@@ -88,7 +88,9 @@ extension ContentView {
 
     @ViewBuilder
     private var versionSubtitle: some View {
-        if let transition = updateVersionTransition {
+        if let message = subtitleMessage {
+            Text(message.text)
+        } else if let transition = updateVersionTransition {
             (Text(transition.installed)
                 + Text(" → ")
                 + Text(transition.latest))
@@ -183,9 +185,6 @@ extension ContentView {
         if let selected = model.selectedVersion {
             return "Version \(selected.versionName)"
         }
-        if model.downloadState.phase == .failed, let error = model.downloadState.error ?? model.errorText {
-            return centerErrorText(for: error)
-        }
         if let latest = model.latestVersion {
             return "Latest \(latest.versionName)"
         }
@@ -224,17 +223,23 @@ extension ContentView {
     }
 
     private var usesMultilineSubtitle: Bool {
-        shouldShowRuntimeTitle || isPurchaseRequired || isShowingErrorSubtitle
+        shouldShowRuntimeTitle || isPurchaseRequired || subtitleMessage != nil
     }
 
     private var subtitleLineLimit: Int {
-        isShowingErrorSubtitle ? 3 : (usesMultilineSubtitle ? 2 : 1)
+        subtitleMessage != nil ? 3 : (usesMultilineSubtitle ? 2 : 1)
     }
 
-    private var isShowingErrorSubtitle: Bool {
-        model.downloadState.phase == .failed
-            || model.runtimeState.phase == .failed
-            || model.errorText != nil
+    var subtitleMessage: (text: String, detail: String)? {
+        guard !isPurchaseRequired, !isShowingProgress else {
+            return nil
+        }
+        if let error = model.errorText
+            ?? (model.runtimeState.phase == .failed ? model.runtimeState.error ?? "Runtime failed" : nil)
+            ?? (model.downloadState.phase == .failed ? model.downloadState.error ?? "Download failed" : nil) {
+            return (centerErrorText(for: error), error)
+        }
+        return model.updateWarningText.map { ($0, $0) }
     }
 
     private var shouldShowVersionInfoButton: Bool {

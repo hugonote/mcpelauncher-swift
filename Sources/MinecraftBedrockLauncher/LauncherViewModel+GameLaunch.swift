@@ -150,7 +150,7 @@ extension LauncherViewModel {
         throw LauncherError.gameLaunchFailed(
             status: 11,
             logURL: lastWarmUpLogURL,
-            outputTail: "First launch preparation did not reach Loaded libpairipcore."
+            outputTail: "First launch preparation did not create pass.token."
         )
     }
 

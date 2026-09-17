@@ -40,6 +40,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         logURL: URL? = nil
     ) throws {
         let executableURL = try runtimeExecutable(in: runtimePath)
+        try installCredentialsHelper(nextTo: executableURL, from: credentialsHelperDirectory)
         var arguments = ["--disable-fmod"]
         if !Self.falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
             arguments.append("-fes")
@@ -258,10 +259,11 @@ public struct RuntimeLauncher: @unchecked Sendable {
         }
 
         let deadline = Date().addingTimeInterval(timeout)
+        let tokenURL = dataPath.appendingPathComponent("pass.token", isDirectory: false)
         var timedOut = false
         while process.isRunning {
             let text = outputTail.text()
-            if Self.didLoadPairIP(text) {
+            if Self.didLoadPairIP(text), fileManager.fileExists(atPath: tokenURL.path) {
                 process.terminate()
                 break
             }
@@ -284,7 +286,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
             logURL: logURL
         )
 
-        if Self.didLoadPairIP(text) {
+        if Self.didLoadPairIP(text), fileManager.fileExists(atPath: tokenURL.path) {
             return .loadedPairIP
         }
         if Self.isExpectedFirstRunPairIPCrash(
@@ -354,6 +356,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         googleCredential: GoogleCredential?
     ) throws -> LaunchCommand {
         let executableURL = try runtimeExecutable(in: runtimePath)
+        try installCredentialsHelper(nextTo: executableURL, from: credentialsHelperDirectory)
         var arguments = ["--disable-fmod"]
         if !Self.falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
             arguments.append("-fes")
@@ -404,6 +407,26 @@ public struct RuntimeLauncher: @unchecked Sendable {
             environment: environment,
             credentialFileURL: credentialFileURL
         )
+    }
+
+    private func installCredentialsHelper(nextTo executableURL: URL, from directory: URL?) throws {
+        guard let directory else { return }
+        let source = directory.appendingPathComponent("mcpelauncher-ui-qt", isDirectory: false)
+        guard fileManager.isExecutableFile(atPath: source.path) else { return }
+        let destination = executableURL.deletingLastPathComponent()
+            .appendingPathComponent("mcpelauncher-ui-qt", isDirectory: false)
+        guard source.standardizedFileURL != destination.standardizedFileURL,
+              !fileManager.contentsEqual(atPath: source.path, andPath: destination.path) else { return }
+
+        let staged = destination.deletingLastPathComponent()
+            .appendingPathComponent(".mcpelauncher-ui-qt-\(UUID().uuidString)", isDirectory: false)
+        try fileManager.copyItem(at: source, to: staged)
+        defer { try? fileManager.removeItem(at: staged) }
+        if fileManager.fileExists(atPath: destination.path) {
+            _ = try fileManager.replaceItemAt(destination, withItemAt: staged)
+        } else {
+            try fileManager.moveItem(at: staged, to: destination)
+        }
     }
 
     private static func falseyEnvironmentValue(_ name: String) -> Bool {

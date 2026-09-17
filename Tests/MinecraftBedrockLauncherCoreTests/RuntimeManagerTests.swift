@@ -445,16 +445,32 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertEqual(launch.environment[RuntimeClientWrapperEnvironment.outputLogKey], logURL.path)
     }
 
-    func testRuntimeWarmUpTerminatesAfterPairIPLoads() throws {
+    func testRuntimeWarmUpTerminatesAfterTokenIsCreated() throws {
         let temp = try TemporaryDirectory()
         let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)
         let executableURL = runtimeURL.appendingPathComponent("MacOS/mcpelauncher-client-arm64-v8a", isDirectory: false)
+        let runtimeHelperURL = runtimeURL.appendingPathComponent("MacOS/mcpelauncher-ui-qt", isDirectory: false)
+        let helperURL = temp.url.appendingPathComponent("Helpers/mcpelauncher-ui-qt", isDirectory: false)
+        try writeExecutable(runtimeHelperURL, contents: "#!/bin/zsh\nprint old\n")
+        try writeExecutable(helperURL, contents: "#!/bin/zsh\nprint replacement\n")
         try writeExecutable(
             executableURL,
             contents: """
             #!/bin/zsh
+            data_dir=""
+            while [[ $# -gt 0 ]]; do
+              if [[ "$1" == "-dd" ]]; then
+                data_dir="$2"
+                shift 2
+              else
+                shift
+              fi
+            done
             print '17:00:00 Info  [MinecraftUtils] Loaded libpairipcore'
-            sleep 10
+            sleep 0.2
+            mkdir -p "$data_dir"
+            print -n token > "$data_dir/pass.token"
+            exec sleep 10
             """
         )
         let version = try makeWarmUpVersion(in: temp.url)
@@ -471,6 +487,26 @@ final class RuntimeManagerTests: XCTestCase {
         )
 
         XCTAssertEqual(result, .loadedPairIP)
+        XCTAssertEqual(try Data(contentsOf: runtimeHelperURL), try Data(contentsOf: helperURL))
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: runtimeHelperURL.path))
+    }
+
+    func testRuntimeWarmUpDoesNotFinishBeforeTokenExists() throws {
+        let temp = try TemporaryDirectory()
+        let runtimeURL = temp.url.appendingPathComponent("Runtime", isDirectory: true)
+        let executableURL = runtimeURL.appendingPathComponent("MacOS/mcpelauncher-client-arm64-v8a", isDirectory: false)
+        try writeExecutable(executableURL, contents: "#!/bin/zsh\nprint 'Loaded libpairipcore'\nexec sleep 10\n")
+        let version = try makeWarmUpVersion(in: temp.url)
+
+        XCTAssertThrowsError(try RuntimeLauncher().warmUpFirstLaunch(
+            runtimePath: runtimeURL,
+            version: version,
+            compatibilityPatchPath: temp.url.appendingPathComponent("Patch", isDirectory: true),
+            dataPath: temp.url.appendingPathComponent("Data", isDirectory: true),
+            cachePath: temp.url.appendingPathComponent("Cache", isDirectory: true),
+            credentialsHelperDirectory: temp.url.appendingPathComponent("Helpers", isDirectory: true),
+            timeout: 0.3
+        ))
     }
 
     func testRuntimeWarmUpAcceptsFirstRunPairIPCrashAfterTokenIsWritten() throws {

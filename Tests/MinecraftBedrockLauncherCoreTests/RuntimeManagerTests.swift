@@ -451,8 +451,12 @@ final class RuntimeManagerTests: XCTestCase {
         let executableURL = runtimeURL.appendingPathComponent("MacOS/mcpelauncher-client-arm64-v8a", isDirectory: false)
         let runtimeHelperURL = runtimeURL.appendingPathComponent("MacOS/mcpelauncher-ui-qt", isDirectory: false)
         let helperURL = temp.url.appendingPathComponent("Helpers/mcpelauncher-ui-qt", isDirectory: false)
+        let runtimeWebviewURL = runtimeURL.appendingPathComponent("MacOS/mcpelauncher-webview", isDirectory: false)
+        let webviewURL = temp.url.appendingPathComponent("Helpers/mcpelauncher-webview", isDirectory: false)
         try writeExecutable(runtimeHelperURL, contents: "#!/bin/zsh\nprint old\n")
         try writeExecutable(helperURL, contents: "#!/bin/zsh\nprint replacement\n")
+        try writeExecutable(runtimeWebviewURL, contents: "#!/bin/zsh\nprint old\n")
+        try writeExecutable(webviewURL, contents: "#!/bin/zsh\nprint replacement\n")
         try writeExecutable(
             executableURL,
             contents: """
@@ -489,6 +493,8 @@ final class RuntimeManagerTests: XCTestCase {
         XCTAssertEqual(result, .loadedPairIP)
         XCTAssertEqual(try Data(contentsOf: runtimeHelperURL), try Data(contentsOf: helperURL))
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: runtimeHelperURL.path))
+        XCTAssertEqual(try Data(contentsOf: runtimeWebviewURL), try Data(contentsOf: webviewURL))
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: runtimeWebviewURL.path))
     }
 
     func testRuntimeWarmUpDoesNotFinishBeforeTokenExists() throws {

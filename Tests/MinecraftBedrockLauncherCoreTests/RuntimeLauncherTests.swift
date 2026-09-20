@@ -14,6 +14,14 @@ final class RuntimeLauncherTests: XCTestCase {
         try FileManager.default.createDirectory(at: helpersURL, withIntermediateDirectories: true)
         XCTAssertTrue(FileManager.default.createFile(atPath: executableURL.path, contents: Data()))
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
+        for name in ["mcpelauncher-ui-qt", "mcpelauncher-webview"] {
+            let bundledHelperURL = helpersURL.appendingPathComponent(name)
+            let runtimeHelperURL = runtimeBinURL.appendingPathComponent(name)
+            XCTAssertTrue(FileManager.default.createFile(atPath: bundledHelperURL.path, contents: Data()))
+            XCTAssertTrue(FileManager.default.createFile(atPath: runtimeHelperURL.path, contents: Data()))
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledHelperURL.path)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: runtimeHelperURL.path)
+        }
 
         let runner = RecordingProcessRunner()
         try RuntimeLauncher(processRunner: runner).launch(
@@ -23,7 +31,9 @@ final class RuntimeLauncherTests: XCTestCase {
         )
 
         XCTAssertEqual(runner.environment?["PATH"]?.split(separator: ":").first, Substring(helpersURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: runtimeBinURL.appendingPathComponent("mcpelauncher-webview").path))
+        for name in ["mcpelauncher-ui-qt", "mcpelauncher-webview"] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: runtimeBinURL.appendingPathComponent(name).path))
+        }
     }
 }
 

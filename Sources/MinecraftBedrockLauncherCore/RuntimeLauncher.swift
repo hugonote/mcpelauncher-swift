@@ -40,6 +40,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         logURL: URL? = nil
     ) throws {
         let executableURL = try runtimeExecutable(in: runtimePath)
+        try removeShadowingRuntimeHelpers(nextTo: executableURL, from: credentialsHelperDirectory)
         var arguments = ["--disable-fmod"]
         if !Self.falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
             arguments.append("-fes")
@@ -355,6 +356,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         googleCredential: GoogleCredential?
     ) throws -> LaunchCommand {
         let executableURL = try runtimeExecutable(in: runtimePath)
+        try removeShadowingRuntimeHelpers(nextTo: executableURL, from: credentialsHelperDirectory)
         var arguments = ["--disable-fmod"]
         if !Self.falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
             arguments.append("-fes")
@@ -405,6 +407,19 @@ public struct RuntimeLauncher: @unchecked Sendable {
             environment: environment,
             credentialFileURL: credentialFileURL
         )
+    }
+
+    private func removeShadowingRuntimeHelpers(nextTo executableURL: URL, from directory: URL?) throws {
+        guard let directory else { return }
+        for name in ["mcpelauncher-ui-qt", "mcpelauncher-webview"] {
+            let source = directory.appendingPathComponent(name, isDirectory: false)
+            let destination = executableURL.deletingLastPathComponent()
+                .appendingPathComponent(name, isDirectory: false)
+            guard source.standardizedFileURL != destination.standardizedFileURL,
+                  fileManager.isExecutableFile(atPath: source.path),
+                  fileManager.fileExists(atPath: destination.path) || isSymbolicLink(at: destination) else { continue }
+            try fileManager.removeItem(at: destination)
+        }
     }
 
     private static func falseyEnvironmentValue(_ name: String) -> Bool {

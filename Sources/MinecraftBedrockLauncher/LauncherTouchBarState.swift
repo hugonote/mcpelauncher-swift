@@ -65,6 +65,11 @@ struct LauncherTouchBarState {
             return "Download"
         }
         if LauncherTouchBarRules.isMinecraftUpdateAvailable(model) {
+            if let installed = model.selectedVersion,
+               let latest = model.latestVersion,
+               latest.versionCode < installed.versionCode {
+                return "Downgrade"
+            }
             return "Update"
         }
         if model.canUseSelectedVersion {

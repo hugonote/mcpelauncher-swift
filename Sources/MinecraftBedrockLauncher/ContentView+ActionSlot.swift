@@ -124,6 +124,11 @@ extension ContentView {
             return "Download"
         }
         if isMinecraftUpdateAvailable {
+            if let installed = model.selectedVersion,
+               let latest = model.latestVersion,
+               latest.versionCode < installed.versionCode {
+                return "Downgrade"
+            }
             return "Update"
         }
         if model.canUseSelectedVersion {

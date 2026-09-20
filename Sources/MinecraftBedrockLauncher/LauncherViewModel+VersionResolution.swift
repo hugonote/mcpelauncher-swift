@@ -175,7 +175,8 @@ extension LauncherViewModel {
 
     private func downloadableVersionResolution(for latest: LatestVersion) async throws -> DownloadableVersionResolution {
         let metadata = try await ensureCompatibilityPatch()
-        if metadata.supports(versionCode: latest.versionCode) {
+        if metadata.supports(versionCode: latest.versionCode)
+            || LauncherPreferences.allowsUnsupportedMinecraftVersions {
             return DownloadableVersionResolution(
                 downloadable: latest,
                 newestSupportedVersion: metadata.newestSupportedVersion
@@ -219,6 +220,10 @@ extension LauncherViewModel {
             return
         }
         newestSupportedVersion = metadata.newestSupportedVersion
+        if LauncherPreferences.allowsUnsupportedMinecraftVersions {
+            selectedVersionWarning = nil
+            return
+        }
         guard metadata.supports(versionCode: selectedVersion.versionCode) else {
             let supported = metadata.newestSupportedVersion
             selectedVersionWarning = LauncherError.unsupportedMinecraftVersion(
@@ -252,12 +257,19 @@ extension LauncherViewModel {
 
     func compatibilityPatchPath(for version: InstalledVersion) async throws -> URL {
         let manager = CompatibilityPatchManager(paths: paths, processRunner: processRunner)
-        if let patchPath = manager.installedPatchPath(for: version.versionCode) {
+        let allowsUnsupported = LauncherPreferences.allowsUnsupportedMinecraftVersions
+        if let patchPath = manager.installedPatchPath(
+            for: version.versionCode,
+            allowsUnsupported: allowsUnsupported
+        ) {
             return patchPath
         }
         let metadata = try await ensureCompatibilityPatch()
-        if metadata.supports(versionCode: version.versionCode),
-           let patchPath = manager.installedPatchPath(for: version.versionCode) {
+        if (metadata.supports(versionCode: version.versionCode) || allowsUnsupported),
+           let patchPath = manager.installedPatchPath(
+               for: version.versionCode,
+               allowsUnsupported: allowsUnsupported
+           ) {
             return patchPath
         }
         let supported = metadata.newestSupportedVersion
@@ -267,6 +279,26 @@ extension LauncherViewModel {
             supportedVersionName: supported?.versionName,
             supportedVersionCode: supported?.versionCode
         )
+    }
+
+    func prepareUnsupportedMinecraftVersionRollbackIfNeeded() async {
+        do {
+            let metadata = try await ensureCompatibilityPatch()
+            newestSupportedVersion = metadata.newestSupportedVersion
+            refreshSelectedVersionCompatibility()
+            guard let selectedVersion,
+                  let supported = metadata.newestSupportedVersion,
+                  selectedVersion.versionCode > supported.versionCode else {
+                return
+            }
+            latestVersion = LatestVersion(
+                packageName: MinecraftDownloadCoordinator.packageName,
+                versionName: supported.versionName,
+                versionCode: supported.versionCode
+            )
+        } catch {
+            show(error)
+        }
     }
 
     func applyCompatibilityLibraryPatches(to version: InstalledVersion) async throws {

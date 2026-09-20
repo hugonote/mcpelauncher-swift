@@ -18,6 +18,9 @@ struct SettingsView: View {
     @AppStorage(LauncherPreferences.automaticallyInstallGameUpdatesKey)
     private var automaticallyInstallGameUpdates = false
 
+    @AppStorage(LauncherPreferences.allowUnsupportedMinecraftVersionsKey)
+    private var allowUnsupportedMinecraftVersions = false
+
     @AppStorage(LauncherPreferences.automaticallyCheckLauncherUpdatesKey)
     private var automaticallyCheckLauncherUpdates = true
 
@@ -33,6 +36,7 @@ struct SettingsView: View {
     @State private var pendingDeleteAction: DeleteAction?
     @State private var completedAction: DeleteAction?
     @State private var isPresentingQuickLaunchWarning = false
+    @State private var isPresentingUnsupportedVersionsWarning = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -66,6 +70,13 @@ struct SettingsView: View {
                             .init(title: "Install", value: MinecraftUpdateMode.checkAndInstall.rawValue)
                         ],
                         isDisabled: !automaticallyCheckRuntimeUpdates
+                    )
+                    Divider()
+                    ToggleRow(
+                        title: "Unsupported Versions",
+                        subtitle: "Allow unverified Minecraft updates",
+                        systemImage: "exclamationmark.triangle",
+                        isOn: unsupportedMinecraftVersionsBinding
                     )
                 }
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -197,6 +208,18 @@ struct SettingsView: View {
         } message: {
             Text("Minecraft will start automatically.\n\nHold Option (⌥) during startup to cancel Quick Launch.")
         }
+        .alert("Allow Unsupported Versions?", isPresented: $isPresentingUnsupportedVersionsWarning) {
+            Button("Allow Anyway", role: .destructive) {
+                allowUnsupportedMinecraftVersions = true
+                model.refreshSelectedVersionCompatibility()
+                if model.credential != nil {
+                    Task { await model.fetchLatest() }
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Minecraft versions not listed by the current compatibility patch may fail to launch or crash.")
+        }
     }
 
     private var quickLaunchBinding: Binding<Bool> {
@@ -226,6 +249,21 @@ struct SettingsView: View {
                 let mode = MinecraftUpdateMode(rawValue: rawValue) ?? .onlyCheck
                 automaticallyCheckGameUpdates = mode != .off
                 automaticallyInstallGameUpdates = mode == .checkAndInstall
+            }
+        )
+    }
+
+    private var unsupportedMinecraftVersionsBinding: Binding<Bool> {
+        Binding(
+            get: { allowUnsupportedMinecraftVersions },
+            set: { isEnabled in
+                if isEnabled {
+                    isPresentingUnsupportedVersionsWarning = true
+                } else {
+                    allowUnsupportedMinecraftVersions = false
+                    model.refreshSelectedVersionCompatibility()
+                    Task { await model.prepareUnsupportedMinecraftVersionRollbackIfNeeded() }
+                }
             }
         )
     }

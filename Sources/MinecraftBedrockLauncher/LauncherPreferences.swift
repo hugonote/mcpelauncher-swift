@@ -6,6 +6,7 @@ enum LauncherPreferences {
     static let automaticallyCheckRuntimeUpdatesKey = "automaticallyCheckRuntimeUpdates"
     static let automaticallyCheckGameUpdatesKey = "automaticallyCheckGameUpdates"
     static let automaticallyInstallGameUpdatesKey = "automaticallyInstallGameUpdates"
+    static let allowUnsupportedMinecraftVersionsKey = "allowUnsupportedMinecraftVersions"
     static let automaticallyCheckLauncherUpdatesKey = "automaticallyCheckLauncherUpdates"
     static let runtimeVersionKey = "runtimeVersion"
     static let showInGameStatusBarKey = "showInGameStatusBar"
@@ -21,6 +22,7 @@ enum LauncherPreferences {
             automaticallyCheckRuntimeUpdatesKey: true,
             automaticallyCheckGameUpdatesKey: true,
             automaticallyInstallGameUpdatesKey: false,
+            allowUnsupportedMinecraftVersionsKey: false,
             automaticallyCheckLauncherUpdatesKey: true,
             showInGameStatusBarKey: false,
             fpsCounterVisibilityKey: RuntimeHUDVisibility.off.rawValue,
@@ -58,6 +60,10 @@ enum LauncherPreferences {
 
     static var canAutomaticallyInstallGameUpdates: Bool {
         canAutomaticallyCheckGameUpdates && automaticallyInstallGameUpdates
+    }
+
+    static var allowsUnsupportedMinecraftVersions: Bool {
+        UserDefaults.standard.bool(forKey: allowUnsupportedMinecraftVersionsKey)
     }
 
     static var automaticallyCheckLauncherUpdates: Bool {

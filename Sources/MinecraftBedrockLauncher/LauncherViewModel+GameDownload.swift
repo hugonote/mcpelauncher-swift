@@ -77,7 +77,8 @@ extension LauncherViewModel {
         guard let latestVersion else {
             return true
         }
-        if selectedVersion?.versionCode == latestVersion.versionCode {
+        if let selectedVersion,
+           selectedVersion.versionCode >= latestVersion.versionCode {
             return true
         }
 

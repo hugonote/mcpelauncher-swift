@@ -28,9 +28,9 @@ public struct CompatibilityPatchManager: @unchecked Sendable {
         return try? decoder.decode(CompatibilityPatchMetadata.self, from: data)
     }
 
-    public func installedPatchPath(for versionCode: Int) -> URL? {
+    public func installedPatchPath(for versionCode: Int, allowsUnsupported: Bool = false) -> URL? {
         guard let metadata = installedMetadata(),
-              metadata.supports(versionCode: versionCode),
+              allowsUnsupported || metadata.supports(versionCode: versionCode),
               fileManager.isExecutableFile(atPath: metadata.installPath.appendingPathComponent("libmcpelauncher-updates.so").path) else {
             return nil
         }

@@ -7,6 +7,7 @@ enum LauncherPreferences {
     static let automaticallyCheckGameUpdatesKey = "automaticallyCheckGameUpdates"
     static let automaticallyInstallGameUpdatesKey = "automaticallyInstallGameUpdates"
     static let automaticallyCheckLauncherUpdatesKey = "automaticallyCheckLauncherUpdates"
+    static let runtimeVersionKey = "runtimeVersion"
     static let showInGameStatusBarKey = "showInGameStatusBar"
     static let fpsCounterVisibilityKey = "fpsCounterVisibility"
     static let vSyncEnabledKey = "vSyncEnabled"
@@ -61,6 +62,17 @@ enum LauncherPreferences {
 
     static var automaticallyCheckLauncherUpdates: Bool {
         UserDefaults.standard.bool(forKey: automaticallyCheckLauncherUpdatesKey)
+    }
+
+    static var runtimeVersion: String? {
+        get { UserDefaults.standard.string(forKey: runtimeVersionKey) }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue, forKey: runtimeVersionKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: runtimeVersionKey)
+            }
+        }
     }
 
     static var showInGameStatusBar: Bool {

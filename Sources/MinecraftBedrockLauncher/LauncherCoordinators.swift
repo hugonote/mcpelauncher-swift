@@ -87,8 +87,8 @@ struct MinecraftDownloadCoordinator: Sendable {
 struct RuntimeInstallCoordinator: Sendable {
     var manager: RuntimeManager
 
-    func installedState(fallbackDetail: String) -> RuntimeState? {
-        guard manager.hasInstalledRuntime() else {
+    func installedState(requiredVersion: String?, fallbackDetail: String) -> RuntimeState? {
+        guard manager.hasInstalledRuntime(version: requiredVersion) else {
             return nil
         }
         if let metadata = manager.installedMetadata() {
@@ -97,12 +97,19 @@ struct RuntimeInstallCoordinator: Sendable {
         return RuntimeState(phase: .ready, version: "installed", detail: fallbackDetail)
     }
 
-    func installLatest(progress: @escaping @Sendable (DownloadProgress) -> Void) async throws -> RuntimeMetadata {
-        try await manager.installLatest(progress: progress)
-    }
-
     func resolveLatestRelease() async throws -> RuntimeRelease {
         try await manager.resolveLatestRelease()
+    }
+
+    func resolveRelease(version: String?) async throws -> RuntimeRelease {
+        if let version {
+            return try await manager.resolveRelease(version: version)
+        }
+        return try await resolveLatestRelease()
+    }
+
+    func availableReleases() async throws -> [RuntimeRelease] {
+        try await manager.availableReleases()
     }
 
     func install(

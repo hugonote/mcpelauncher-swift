@@ -7,6 +7,8 @@ public struct RuntimeManager: @unchecked Sendable {
     )!
     public static let defaultReleaseAPIURL = URL(string: "https://api.github.com/repos/minecraft-linux/mcpelauncher-manifest/releases/tags/nightly")!
     public static let stableReleaseAPIURL = URL(string: "https://api.github.com/repos/minecraft-linux/macos-builder/releases/latest")!
+    // ponytail: one GitHub page covers the current history; paginate after 100 usable releases.
+    public static let stableReleasesAPIURL = URL(string: "https://api.github.com/repos/minecraft-linux/macos-builder/releases?per_page=100")!
 
     private let paths: AppPaths
     private let processRunner: ProcessRunning
@@ -32,9 +34,12 @@ public struct RuntimeManager: @unchecked Sendable {
         return try? decoder.decode(RuntimeMetadata.self, from: data)
     }
 
-    public func hasInstalledRuntime() -> Bool {
-        (try? RuntimeLauncher(fileManager: fileManager, processRunner: processRunner)
-            .runtimeExecutable(in: paths.runtimeURL)) != nil
+    public func hasInstalledRuntime(version: String? = nil) -> Bool {
+        guard (try? RuntimeLauncher(fileManager: fileManager, processRunner: processRunner)
+            .runtimeExecutable(in: paths.runtimeURL)) != nil else {
+            return false
+        }
+        return version.map { installedMetadata()?.version == $0 } ?? true
     }
 
     public func resolveLatestRelease() async throws -> RuntimeRelease {
@@ -68,6 +73,17 @@ public struct RuntimeManager: @unchecked Sendable {
         } catch {
             return try await resolveRelease(Self.defaultReleaseAPIURL)
         }
+    }
+
+    public func resolveRelease(version: String) async throws -> RuntimeRelease {
+        let url = URL(string: "https://api.github.com/repos/minecraft-linux/macos-builder/releases/tags/")!
+            .appendingPathComponent(version)
+        return try await resolveRelease(url)
+    }
+
+    public func availableReleases() async throws -> [RuntimeRelease] {
+        let releases = try await fetch([GitHubRelease].self, from: Self.stableReleasesAPIURL)
+        return Self.runtimeReleases(from: releases)
     }
 
     public func installLatest(
@@ -164,13 +180,13 @@ public struct RuntimeManager: @unchecked Sendable {
         ).download(request)
     }
 
-    private func fetchRelease(_ url: URL) async throws -> GitHubRelease {
+    private func fetch<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw LauncherError.runtimeInstallFailed("GitHub release lookup returned HTTP \(http.statusCode) for \(url.absoluteString).")
         }
-        return try decoder.decode(GitHubRelease.self, from: data)
+        return try decoder.decode(T.self, from: data)
     }
 
     private func resolveRuntimeManifest(_ url: URL) async throws -> RuntimeRelease {
@@ -190,19 +206,11 @@ public struct RuntimeManager: @unchecked Sendable {
     }
 
     private func resolveRelease(_ apiURL: URL) async throws -> RuntimeRelease {
-        let release = try await fetchRelease(apiURL)
-        guard let asset = Self.selectRuntimeAsset(from: release.assets),
-              let url = URL(string: asset.browserDownloadURL) else {
+        let release = try await fetch(GitHubRelease.self, from: apiURL)
+        guard let resolved = Self.runtimeRelease(from: release) else {
             throw LauncherError.runtimeReleaseNotFound(apiURL.absoluteString)
         }
-        let build = Self.runtimeBuildNumber(from: asset.name)
-        return RuntimeRelease(
-            version: release.tagName == "nightly" ? "nightly-\(build)" : release.tagName,
-            assetName: asset.name,
-            downloadURL: url,
-            sha256: asset.sha256Digest,
-            size: asset.size
-        )
+        return resolved
     }
 
     private func installRuntimeFromDMG(_ dmgURL: URL, mountURL: URL, stagingURL: URL) throws {
@@ -385,7 +393,12 @@ public struct RuntimeManager: @unchecked Sendable {
         }
     }
 
-    private func hasGraphicsFrameworks(at runtimeURL: URL) -> Bool {
+    func hasGraphicsFrameworks(at runtimeURL: URL) -> Bool {
+        let legacyRoot = runtimeURL.appendingPathComponent("Frameworks", isDirectory: true)
+        if fileManager.fileExists(atPath: legacyRoot.appendingPathComponent("libEGL.dylib").path),
+           fileManager.fileExists(atPath: legacyRoot.appendingPathComponent("libGLESv2.dylib").path) {
+            return true
+        }
         let roots = [
             runtimeURL.appendingPathComponent("Frameworks/mvk-angle", isDirectory: true),
             runtimeURL.appendingPathComponent("Resources/Minecraft Bedrock/Frameworks/mvk-angle", isDirectory: true)
@@ -519,6 +532,33 @@ public struct RuntimeManager: @unchecked Sendable {
             return 0
         }
         return value
+    }
+
+    static func runtimeReleases(from releases: [GitHubRelease]) -> [RuntimeRelease] {
+        releases
+            .filter {
+                !$0.draft
+                    && !$0.prerelease
+                    && !$0.tagName.localizedCaseInsensitiveContains("nightly")
+                    && !$0.tagName.hasPrefix("v1.17.0-")
+            }
+            .compactMap(runtimeRelease(from:))
+            .sorted { $0.version.compare($1.version, options: .numeric) == .orderedDescending }
+    }
+
+    static func runtimeRelease(from release: GitHubRelease) -> RuntimeRelease? {
+        guard let asset = selectRuntimeAsset(from: release.assets),
+              let url = URL(string: asset.browserDownloadURL) else {
+            return nil
+        }
+        let build = runtimeBuildNumber(from: asset.name)
+        return RuntimeRelease(
+            version: release.tagName == "nightly" ? "nightly-\(build)" : release.tagName,
+            assetName: asset.name,
+            downloadURL: url,
+            sha256: asset.sha256Digest,
+            size: asset.size
+        )
     }
 
     static func runtimeRelease(from manifest: RuntimeReleaseManifest, manifestURL: URL) throws -> RuntimeRelease {
@@ -674,10 +714,14 @@ struct RuntimeReleaseManifest: Decodable, Equatable {
 struct GitHubRelease: Decodable {
     var tagName: String
     var assets: [GitHubAsset]
+    var draft: Bool
+    var prerelease: Bool
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case assets
+        case draft
+        case prerelease
     }
 }
 

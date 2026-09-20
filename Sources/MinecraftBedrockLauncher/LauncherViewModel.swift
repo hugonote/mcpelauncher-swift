@@ -31,6 +31,8 @@ final class LauncherViewModel: ObservableObject {
     }
     @Published var downloadState = DownloadState()
     @Published var runtimeState = RuntimeState()
+    @Published var availableRuntimeReleases: [RuntimeRelease] = []
+    @Published var isLoadingRuntimeReleases = false
     @Published var errorState = LauncherErrorState()
     @Published var updateWarningText: String?
     @Published var credentialAccessDenied = false
@@ -161,6 +163,7 @@ final class LauncherViewModel: ObservableObject {
     var activeContentImportURLs: [URL] = []
     var pendingContentImportURLs: [URL] = []
     var completedContentImportFileCount = 0
+    var didLoadRuntimeReleases = false
 
     var canDownloadRuntime: Bool {
         selectedVersion != nil || hasVerifiedMinecraftAccess

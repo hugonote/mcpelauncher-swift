@@ -118,13 +118,90 @@ extension ContentView {
             }
 
             VStack(alignment: .leading, spacing: 7) {
-                versionInfoRow("Runtime", runtimeInfoVersionText)
+                runtimeVersionInfoRow
                 versionInfoRow("Compatible", compatibleVersionText)
                 versionInfoRow("Google Play", googlePlayVersionText)
             }
         }
         .padding(12)
         .frame(width: 166)
+        .task { await model.refreshRuntimeReleases() }
+    }
+
+    private var runtimeVersionInfoRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("Runtime")
+                .foregroundStyle(.secondary)
+                .frame(width: 62, alignment: .leading)
+            Menu {
+                runtimeVersionMenuButton(
+                    model.availableRuntimeReleases.first.map { "Latest (\($0.version))" } ?? "Latest",
+                    version: nil
+                )
+                Divider()
+                if model.isLoadingRuntimeReleases {
+                    Button("Loading…") {}
+                        .disabled(true)
+                } else if model.availableRuntimeReleases.count < 2 {
+                    Button("Older versions unavailable") {}
+                        .disabled(true)
+                } else {
+                    ForEach(Array(model.availableRuntimeReleases.dropFirst().prefix(5)), id: \.version) { release in
+                        runtimeVersionMenuButton(release.version, version: release.version)
+                    }
+                }
+            } label: {
+                Text(runtimeInfoVersionText)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .menuStyle(.borderlessButton)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .disabled(model.isRuntimeBusy || model.isDeletingRuntime || model.runtimeOverrideURL() != nil)
+        }
+        .font(.caption)
+    }
+
+    @ViewBuilder
+    private func runtimeVersionMenuButton(_ title: String, version: String?) -> some View {
+        Button {
+            confirmRuntimeVersionChange(to: version)
+        } label: {
+            if LauncherPreferences.runtimeVersion == version {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+        .disabled(LauncherPreferences.runtimeVersion == version)
+    }
+
+    private func confirmRuntimeVersionChange(to version: String?) {
+        isShowingVersionInfo = false
+        guard let version else {
+            model.selectRuntimeVersion(nil)
+            return
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Compatibility Risk"
+        alert.informativeText = "Older runtime versions may be incompatible with the installed Minecraft version."
+        alert.addButton(withTitle: "Cancel")
+        let replaceButton = alert.addButton(withTitle: "Download Anyway")
+        replaceButton.keyEquivalent = ""
+        replaceButton.hasDestructiveAction = true
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { response in
+            if response == .alertSecondButtonReturn {
+                model.selectRuntimeVersion(version)
+            }
+        }
+        if let window {
+            alert.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            handleResponse(alert.runModal())
+        }
     }
 
     private func versionInfoRow(_ title: String, _ value: String) -> some View {

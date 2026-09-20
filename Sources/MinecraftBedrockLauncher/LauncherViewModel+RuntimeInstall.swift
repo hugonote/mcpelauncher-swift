@@ -43,6 +43,33 @@ extension LauncherViewModel {
         }
     }
 
+    func refreshRuntimeReleases() async {
+        guard !didLoadRuntimeReleases, !isLoadingRuntimeReleases else {
+            return
+        }
+        isLoadingRuntimeReleases = true
+        defer { isLoadingRuntimeReleases = false }
+        let manager = RuntimeManager(paths: paths, processRunner: processRunner)
+        guard let releases = try? await RuntimeInstallCoordinator(manager: manager).availableReleases() else {
+            return
+        }
+        availableRuntimeReleases = releases
+        didLoadRuntimeReleases = true
+    }
+
+    func selectRuntimeVersion(_ version: String?) {
+        guard version != LauncherPreferences.runtimeVersion else {
+            return
+        }
+        LauncherPreferences.runtimeVersion = version
+        Task { [weak self] in
+            guard let self, await deleteRuntime() else {
+                return
+            }
+            startAutomaticRuntimeUpdate()
+        }
+    }
+
     func cancelRuntimeDownload() {
         guard runtimeState.phase == .downloading else {
             return
@@ -57,7 +84,10 @@ extension LauncherViewModel {
 
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
         let coordinator = RuntimeInstallCoordinator(manager: manager)
-        if let state = coordinator.installedState(fallbackDetail: "Using installed runtime; runtime download canceled.") {
+        if let state = coordinator.installedState(
+            requiredVersion: LauncherPreferences.runtimeVersion,
+            fallbackDetail: "Using installed runtime; runtime download canceled."
+        ) {
             runtimeState = state
         } else {
             runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
@@ -83,7 +113,10 @@ extension LauncherViewModel {
 
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
         let coordinator = RuntimeInstallCoordinator(manager: manager)
-        if let state = coordinator.installedState(fallbackDetail: "Using installed runtime; update skipped.") {
+        if let state = coordinator.installedState(
+            requiredVersion: LauncherPreferences.runtimeVersion,
+            fallbackDetail: "Using installed runtime; update skipped."
+        ) {
             errorText = nil
             runtimeState = state
             return
@@ -94,7 +127,10 @@ extension LauncherViewModel {
     func refreshInstalledRuntimeState() {
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
         let coordinator = RuntimeInstallCoordinator(manager: manager)
-        if let state = coordinator.installedState(fallbackDetail: "Using installed runtime.") {
+        if let state = coordinator.installedState(
+            requiredVersion: LauncherPreferences.runtimeVersion,
+            fallbackDetail: "Using installed runtime."
+        ) {
             runtimeState = state
         } else {
             runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
@@ -109,9 +145,12 @@ extension LauncherViewModel {
         }
 
         let manager = RuntimeManager(paths: paths, processRunner: processRunner)
-        let hasRuntime = manager.hasInstalledRuntime()
+        let hasRuntime = manager.hasInstalledRuntime(version: LauncherPreferences.runtimeVersion)
         let coordinator = RuntimeInstallCoordinator(manager: manager)
-        if let state = coordinator.installedState(fallbackDetail: "Using installed runtime.") {
+        if let state = coordinator.installedState(
+            requiredVersion: LauncherPreferences.runtimeVersion,
+            fallbackDetail: "Using installed runtime."
+        ) {
             runtimeState = state
         } else {
             runtimeState = RuntimeState(phase: .missing, detail: "Runtime is not installed.")
@@ -125,17 +164,11 @@ extension LauncherViewModel {
     }
 
     func ensureRuntimeForUse() async -> URL? {
-        let launcher = RuntimeLauncher(processRunner: processRunner)
-        let current = runtimeURL()
-        if (try? launcher.runtimeExecutable(in: current)) != nil {
-            return current
+        if let ready = runtimePathForReadyRuntime() {
+            return ready
         }
         await installRuntime(forceStatus: "Downloading runtime", phase: .downloading)
-        let installed = runtimeURL()
-        if (try? launcher.runtimeExecutable(in: installed)) != nil {
-            return installed
-        }
-        return nil
+        return runtimePathForReadyRuntime()
     }
 
     private func installRuntime(
@@ -171,15 +204,12 @@ extension LauncherViewModel {
             }
         }
         do {
-            let metadata: RuntimeMetadata
+            let release = try await coordinator.resolveRelease(version: LauncherPreferences.runtimeVersion)
+            try Task.checkCancellation()
             if allowsSkip {
-                let release = try await coordinator.resolveLatestRelease()
-                try Task.checkCancellation()
                 canSkipRuntimeUpdateCheck = false
-                metadata = try await coordinator.install(release, progress: runtimeDownloadProgress)
-            } else {
-                metadata = try await coordinator.installLatest(progress: runtimeDownloadProgress)
             }
+            let metadata = try await coordinator.install(release, progress: runtimeDownloadProgress)
             guard activeRuntimeUpdateID == updateID, !Task.isCancelled else {
                 return
             }
@@ -198,7 +228,10 @@ extension LauncherViewModel {
             runtimeSkipDelayTask?.cancel()
             runtimeSkipDelayTask = nil
             activeRuntimeUpdateID = nil
-            if let state = coordinator.installedState(fallbackDetail: "Using installed runtime; update skipped.") {
+            if let state = coordinator.installedState(
+                requiredVersion: LauncherPreferences.runtimeVersion,
+                fallbackDetail: "Using installed runtime; update skipped."
+            ) {
                 errorText = nil
                 runtimeState = state
             } else {
@@ -213,6 +246,7 @@ extension LauncherViewModel {
             runtimeSkipDelayTask = nil
             activeRuntimeUpdateID = nil
             if let state = coordinator.installedState(
+                requiredVersion: LauncherPreferences.runtimeVersion,
                 fallbackDetail: "Using installed runtime; update check failed: \(error.localizedDescription)"
             ) {
                 refreshSelectedVersionCompatibility()
@@ -299,15 +333,14 @@ extension LauncherViewModel {
             return override
         }
 
-        let current = paths.runtimeURL
-        let launcher = RuntimeLauncher(processRunner: processRunner)
-        guard (try? launcher.runtimeExecutable(in: current)) != nil else {
+        let manager = RuntimeManager(paths: paths, processRunner: processRunner)
+        guard manager.hasInstalledRuntime(version: LauncherPreferences.runtimeVersion) else {
             return nil
         }
         if runtimeState.phase != .ready {
             refreshInstalledRuntimeState()
         }
-        return current
+        return paths.runtimeURL
     }
 
     func ensureRuntimeReadyForGameWork() async -> Bool {

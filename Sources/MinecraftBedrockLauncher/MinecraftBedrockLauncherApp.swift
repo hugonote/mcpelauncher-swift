@@ -417,6 +417,16 @@ struct MinecraftBedrockLauncherApp: App {
 
                 Divider()
 
+                Button(model.credential == nil ? "Sign In..." : "Sign Out...") {
+                    if model.credential == nil {
+                        model.showingLogin = true
+                    } else {
+                        model.showingSignOutConfirmation = true
+                    }
+                }
+
+                Divider()
+
                 Button {
                     NSWorkspace.shared.open(model.dataFolderURL)
                 } label: {
@@ -425,6 +435,14 @@ struct MinecraftBedrockLauncherApp: App {
 
                 Button("Import Minecraft Content...") {
                     ContentImportOpenFileQueue.shared.requestOpenPanel()
+                }
+            }
+
+            CommandGroup(replacing: .help) {
+                Button("Report an Issue...") {
+                    NSWorkspace.shared.open(
+                        URL(string: "https://github.com/hugonote/mcpelauncher-swift/issues/new")!
+                    )
                 }
             }
         }

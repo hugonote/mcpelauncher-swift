@@ -41,6 +41,7 @@ final class LauncherViewModel: ObservableObject {
     @Published var quickLaunchState = QuickLaunchState.inactive
     @Published var isCheckingLauncherUpdates = false
     @Published var showingLogin = false
+    @Published var showingSignOutConfirmation = false
     @Published var isShowingRunningGameWarning = false
     @Published var canSkipRuntimeUpdateCheck = false
     @Published var isDeletingRuntime = false

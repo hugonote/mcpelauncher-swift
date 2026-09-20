@@ -6,7 +6,6 @@ import AppKit
 struct ContentView: View {
     @ObservedObject var model: LauncherViewModel
     @ObservedObject var appDelegate: AppDelegate
-    @State var isShowingSignOutConfirmation = false
     @State var isShowingVersionInfo = false
     @State var isStartupComplete = false
     @State var isTitleIconVisible = false
@@ -71,9 +70,9 @@ struct ContentView: View {
         .sheet(isPresented: $model.showingLogin) {
             GoogleLoginSheet(model: model)
         }
-        .alert("Log out?", isPresented: $isShowingSignOutConfirmation) {
+        .alert("Sign out?", isPresented: $model.showingSignOutConfirmation) {
             Button("Cancel", role: .cancel) {}
-            Button("Log out", role: .destructive) {
+            Button("Sign out", role: .destructive) {
                 model.signOut()
             }
         } message: {

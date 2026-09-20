@@ -14,19 +14,19 @@ extension ContentView {
                 .help(model.displayCredentialEmail ?? "Not signed in")
 
             if model.credential == nil {
-                Button("Sign in") {
+                Button("Sign In") {
                     model.showingLogin = true
                 }
                 .buttonStyle(.link)
                 .font(.callout.weight(.semibold))
             } else {
                 Button {
-                    isShowingSignOutConfirmation = true
+                    model.showingSignOutConfirmation = true
                 } label: {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
                 }
                 .buttonStyle(.borderless)
-                .help("Log out")
+                .help("Sign out")
             }
         }
         .frame(height: 28)

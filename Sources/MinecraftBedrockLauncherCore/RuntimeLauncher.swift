@@ -40,7 +40,6 @@ public struct RuntimeLauncher: @unchecked Sendable {
         logURL: URL? = nil
     ) throws {
         let executableURL = try runtimeExecutable(in: runtimePath)
-        try installBundledHelpers(nextTo: executableURL, from: credentialsHelperDirectory)
         var arguments = ["--disable-fmod"]
         if !Self.falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
             arguments.append("-fes")
@@ -356,7 +355,6 @@ public struct RuntimeLauncher: @unchecked Sendable {
         googleCredential: GoogleCredential?
     ) throws -> LaunchCommand {
         let executableURL = try runtimeExecutable(in: runtimePath)
-        try installBundledHelpers(nextTo: executableURL, from: credentialsHelperDirectory)
         var arguments = ["--disable-fmod"]
         if !Self.falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
             arguments.append("-fes")
@@ -407,28 +405,6 @@ public struct RuntimeLauncher: @unchecked Sendable {
             environment: environment,
             credentialFileURL: credentialFileURL
         )
-    }
-
-    private func installBundledHelpers(nextTo executableURL: URL, from directory: URL?) throws {
-        guard let directory else { return }
-        for name in ["mcpelauncher-ui-qt", "mcpelauncher-webview"] {
-            let source = directory.appendingPathComponent(name, isDirectory: false)
-            guard fileManager.isExecutableFile(atPath: source.path) else { continue }
-            let destination = executableURL.deletingLastPathComponent()
-                .appendingPathComponent(name, isDirectory: false)
-            guard source.standardizedFileURL != destination.standardizedFileURL,
-                  !fileManager.contentsEqual(atPath: source.path, andPath: destination.path) else { continue }
-
-            let staged = destination.deletingLastPathComponent()
-                .appendingPathComponent(".\(name)-\(UUID().uuidString)", isDirectory: false)
-            try fileManager.copyItem(at: source, to: staged)
-            defer { try? fileManager.removeItem(at: staged) }
-            if fileManager.fileExists(atPath: destination.path) {
-                _ = try fileManager.replaceItemAt(destination, withItemAt: staged)
-            } else {
-                try fileManager.moveItem(at: staged, to: destination)
-            }
-        }
     }
 
     private static func falseyEnvironmentValue(_ name: String) -> Bool {

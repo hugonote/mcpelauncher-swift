@@ -132,7 +132,7 @@ public struct CompatibilityPatchManager: @unchecked Sendable {
             throw LauncherError.runtimeInstallFailed("mcpelauncher-updates did not contain an \(Self.abi) asset.")
         }
 
-        let supportedVersions = version.extraVersions
+        let supportedVersions = version.compatibleExtraVersions
             .compactMap { extra -> SupportedMinecraftVersion? in
                 guard let code = extra.codes[Self.abi] else { return nil }
                 return SupportedMinecraftVersion(versionName: extra.versionName, versionCode: code)
@@ -151,7 +151,18 @@ public struct CompatibilityPatchManager: @unchecked Sendable {
         if let metadata = installedMetadata(),
            metadata.version == patch.version.version,
            fileManager.isExecutableFile(atPath: metadata.installPath.appendingPathComponent("libmcpelauncher-updates.so").path) {
-            return metadata
+            let refreshed = CompatibilityPatchMetadata(
+                version: patch.version.version,
+                assetURL: patch.assetURL,
+                installPath: metadata.installPath,
+                supportedVersions: patch.supportedVersions,
+                installedAt: metadata.installedAt
+            )
+            if refreshed != metadata {
+                try writeModManifest(patch, to: metadata.installPath.appendingPathComponent("mod.json", isDirectory: false))
+                try write(refreshed)
+            }
+            return refreshed
         }
 
         let tempRoot = fileManager.temporaryDirectory
@@ -253,7 +264,7 @@ public struct CompatibilityPatchManager: @unchecked Sendable {
     }
 
     private func newestSupportedCode(in version: ModDBVersion) -> Int {
-        version.extraVersions.compactMap { $0.codes[Self.abi] }.max() ?? 0
+        version.compatibleExtraVersions.compactMap { $0.codes[Self.abi] }.max() ?? 0
     }
 }
 
@@ -291,19 +302,32 @@ struct ModDBVersion: Codable, Equatable, Sendable {
     var assets: [String: String]
     var minecraft: String?
     var extraVersions: [ModDBExtraVersion]
+    var provides: [String: ModDBProvidedVersions]
+
+    var compatibleExtraVersions: [ModDBExtraVersion] {
+        extraVersions + provides.values.flatMap(\.extraVersions)
+    }
 
     enum CodingKeys: String, CodingKey {
         case version
         case assets
         case minecraft
         case extraVersions
+        case provides
     }
 
-    init(version: String, assets: [String: String], minecraft: String? = nil, extraVersions: [ModDBExtraVersion] = []) {
+    init(
+        version: String,
+        assets: [String: String],
+        minecraft: String? = nil,
+        extraVersions: [ModDBExtraVersion] = [],
+        provides: [String: ModDBProvidedVersions] = [:]
+    ) {
         self.version = version
         self.assets = assets
         self.minecraft = minecraft
         self.extraVersions = extraVersions
+        self.provides = provides
     }
 
     init(from decoder: Decoder) throws {
@@ -312,7 +336,12 @@ struct ModDBVersion: Codable, Equatable, Sendable {
         assets = try container.decodeIfPresent([String: String].self, forKey: .assets) ?? [:]
         minecraft = try container.decodeIfPresent(String.self, forKey: .minecraft)
         extraVersions = try container.decodeIfPresent([ModDBExtraVersion].self, forKey: .extraVersions) ?? []
+        provides = try container.decodeIfPresent([String: ModDBProvidedVersions].self, forKey: .provides) ?? [:]
     }
+}
+
+struct ModDBProvidedVersions: Codable, Equatable, Sendable {
+    var extraVersions: [ModDBExtraVersion]
 }
 
 struct ModDBExtraVersion: Codable, Equatable, Sendable {

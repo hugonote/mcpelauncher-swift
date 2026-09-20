@@ -216,7 +216,7 @@ extension ContentView {
         case .installing:
             return model.runtimeState.detail ?? "Installing"
         case .ready:
-            let version = model.runtimeState.version ?? "installed"
+            let version = model.runtimeState.version ?? "Installed"
             if let detail = model.runtimeState.detail, !detail.isEmpty {
                 return "\(version) - \(detail)"
             }

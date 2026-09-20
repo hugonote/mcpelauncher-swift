@@ -47,7 +47,7 @@ enum LauncherIssue: Equatable {
     var centerText: String? {
         switch self {
         case .networkUnavailable:
-            return "No internet connection"
+            return "No Internet Connection"
         case .googlePlayCredentialRequiresSignIn:
             return "Sign in again"
         case .connectionInterrupted:
@@ -59,7 +59,7 @@ enum LauncherIssue: Equatable {
         case .downloadDidNotStart:
             return "Download did not start"
         case .bundledHelperMissing:
-            return "Application corrupted"
+            return "Application Corrupted"
         case .runtimeChecksumMismatch:
             return "Runtime checksum mismatch"
         case .runtimeFailed:
@@ -82,11 +82,11 @@ enum LauncherIssue: Equatable {
         case .connectionInterrupted:
             return "Connection interrupted"
         case .minecraftNotOwned:
-            return "Purchase required"
+            return "Purchase Required"
         case .downloadStalled, .downloadDidNotStart:
             return "Download failed"
         case .bundledHelperMissing:
-            return "Application corrupted"
+            return "Application Corrupted"
         case .runtimeChecksumMismatch:
             return "Checksum mismatch"
         case .runtimeFailed:

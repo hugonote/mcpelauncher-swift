@@ -12,7 +12,7 @@ extension ContentView {
                 Image(systemName: "arrow.down.app.dashed")
             }
             .buttonStyle(.borderless)
-            .help("Import Minecraft content")
+            .help("Import Minecraft Content")
             .disabled(model.isImportingContent)
 
             Button {
@@ -21,7 +21,7 @@ extension ContentView {
                 Image(systemName: "folder")
             }
             .buttonStyle(.borderless)
-            .help("Open data folder")
+            .help("Open Data Folder")
 
             Button {
                 openSettings()

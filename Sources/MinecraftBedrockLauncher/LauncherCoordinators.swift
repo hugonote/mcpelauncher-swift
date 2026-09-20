@@ -94,7 +94,7 @@ struct RuntimeInstallCoordinator: Sendable {
         if let metadata = manager.installedMetadata() {
             return RuntimeState(phase: .ready, version: metadata.version, detail: fallbackDetail)
         }
-        return RuntimeState(phase: .ready, version: "installed", detail: fallbackDetail)
+        return RuntimeState(phase: .ready, version: "Installed", detail: fallbackDetail)
     }
 
     func resolveLatestRelease() async throws -> RuntimeRelease {

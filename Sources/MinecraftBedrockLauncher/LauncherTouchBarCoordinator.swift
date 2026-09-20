@@ -80,14 +80,14 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
             return iconButtonItem(
                 identifier: identifier,
                 systemImage: "square.and.arrow.down",
-                label: "Import Minecraft content",
+                label: "Import Minecraft Content",
                 action: #selector(importContent)
             )
         case ItemID.folder:
             return iconButtonItem(
                 identifier: identifier,
                 systemImage: "folder",
-                label: "Open data folder",
+                label: "Open Data Folder",
                 action: #selector(openDataFolder)
             )
         case ItemID.settings:

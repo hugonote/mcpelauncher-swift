@@ -424,6 +424,7 @@ struct MinecraftBedrockLauncherApp: App {
                         model.showingSignOutConfirmation = true
                     }
                 }
+                .disabled(model.credentialAccessDenied)
 
                 Divider()
 

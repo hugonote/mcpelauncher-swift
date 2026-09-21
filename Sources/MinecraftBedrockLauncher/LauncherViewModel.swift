@@ -91,7 +91,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     var isGameLaunchBlocked: Bool {
-        activeIssue == .bundledHelperMissing
+        credentialAccessDenied || activeIssue == .bundledHelperMissing
             || isGooglePlayBusy || isRuntimeBusy || isLaunchingGame || isImportingContent || isCheckingLauncherUpdates
     }
 

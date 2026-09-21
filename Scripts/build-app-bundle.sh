@@ -16,6 +16,7 @@ APP_ICON_DOCUMENT="${APP_ICON_DOCUMENT:-$PACKAGE_DIR/Resources/minecraft-bedrock
 APP_ICON_NAME="${APP_ICON_NAME:-${APP_ICON_DOCUMENT:t:r}}"
 ACTOOL="${ACTOOL:-$(xcrun --find actool 2>/dev/null || true)}"
 MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-15.0}"
+MACOS_SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
 
 mkdir -p "$OUT_DIR"
 rm -rf "$APP_DIR"
@@ -27,7 +28,11 @@ fi
 
 swift build \
   --package-path "$PACKAGE_DIR" \
-  -c "$CONFIGURATION"
+  -c "$CONFIGURATION" \
+  -Xlinker -platform_version \
+  -Xlinker macos \
+  -Xlinker "$MACOS_DEPLOYMENT_TARGET" \
+  -Xlinker "$MACOS_SDK_VERSION"
 
 BUILD_DIR="$(swift build --package-path "$PACKAGE_DIR" -c "$CONFIGURATION" --show-bin-path)"
 

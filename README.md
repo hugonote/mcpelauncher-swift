@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/hugonote/mcpelauncher-swift/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/hugonote/mcpelauncher-swift?label=release&color=blue"></a>
-  <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-555555">
+  <img alt="macOS 15+" src="https://img.shields.io/badge/macOS-15%2B-555555">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/arch-Apple%20Silicon-8A63D2">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2EA44F"></a>
 </p>
@@ -27,7 +27,7 @@ and SwiftUI.
 > [!NOTE]
 > Minecraft: Bedrock Edition runs on the `mcpelauncher` runtime. This project provides the native macOS launcher and its integration with that runtime. Issues caused by the upstream runtime should be reported to [`mcpelauncher`](https://github.com/minecraft-linux/mcpelauncher-manifest). Launcher and integration issues belong here.
 
-macOS 14 or newer and Apple Silicon are required.
+macOS 15 or newer and Apple Silicon are required.
 
 ## Installation
 

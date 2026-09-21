@@ -15,7 +15,7 @@ CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 APP_ICON_DOCUMENT="${APP_ICON_DOCUMENT:-$PACKAGE_DIR/Resources/minecraft-bedrock.icon}"
 APP_ICON_NAME="${APP_ICON_NAME:-${APP_ICON_DOCUMENT:t:r}}"
 ACTOOL="${ACTOOL:-$(xcrun --find actool 2>/dev/null || true)}"
-MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-14.0}"
+MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-15.0}"
 
 mkdir -p "$OUT_DIR"
 rm -rf "$APP_DIR"
@@ -138,7 +138,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.games</string>
   <key>LSMinimumSystemVersion</key>
-  <string>14.0</string>
+  <string>15.0</string>
   <key>LSSupportsGameMode</key>
   <true/>
   <key>NSHighResolutionCapable</key>

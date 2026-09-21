@@ -516,7 +516,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
             "GCSupportsGameMode": true,
-            "LSMinimumSystemVersion": "14.0",
+            "LSMinimumSystemVersion": "15.0",
             "LSSupportsGameMode": true,
             "NSHighResolutionCapable": true
         ]

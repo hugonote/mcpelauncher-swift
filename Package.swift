@@ -47,8 +47,7 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "GoogleCredentialsHelper",
-            dependencies: ["MinecraftBedrockLauncherCore"]
+            name: "GoogleCredentialsHelper"
         ),
         .executableTarget(
             name: "MinecraftBedrockWebView"

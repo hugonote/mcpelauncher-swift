@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
 PACKAGE_DIR="${SCRIPT_DIR:h}"
-CONFIGURATION="${CONFIGURATION:-release}"
 APP_NAME="${APP_NAME:-Minecraft Bedrock Launcher}"
 APP_VERSION="${APP_VERSION:-0.1.0}"
 OUT_DIR="${OUT_DIR:-$PACKAGE_DIR/.build/app}"
@@ -28,13 +27,15 @@ fi
 
 swift build \
   --package-path "$PACKAGE_DIR" \
-  -c "$CONFIGURATION" \
+  -c release \
+  -debug-info-format none \
+  --enable-experimental-strip-products \
   -Xlinker -platform_version \
   -Xlinker macos \
   -Xlinker "$MACOS_DEPLOYMENT_TARGET" \
   -Xlinker "$MACOS_SDK_VERSION"
 
-BUILD_DIR="$(swift build --package-path "$PACKAGE_DIR" -c "$CONFIGURATION" --show-bin-path)"
+BUILD_DIR="$(swift build --package-path "$PACKAGE_DIR" -c release --show-bin-path)"
 
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Helpers"

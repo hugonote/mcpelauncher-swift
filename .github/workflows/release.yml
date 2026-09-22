@@ -39,7 +39,7 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          repository: hugonote/homebrew-mcpelauncher-swift
+          repository: hugonote/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 

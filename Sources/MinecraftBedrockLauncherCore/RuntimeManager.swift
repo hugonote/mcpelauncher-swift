@@ -227,15 +227,17 @@ public struct RuntimeManager: @unchecked Sendable {
         }
         defer {
             _ = try? processRunner.run(
-                executableURL: URL(fileURLWithPath: "/usr/bin/hdiutil"),
-                arguments: ["detach", mountURL.path, "-quiet"],
+                executableURL: URL(fileURLWithPath: "/usr/sbin/diskutil"),
+                arguments: ["eject", mountURL.path],
                 input: nil,
                 currentDirectoryURL: nil,
                 environment: [:]
             )
         }
-        let appURL = try findAppBundle(in: mountURL)
-        try copyRuntimeFromAppBundle(appURL, to: stagingURL)
+        try autoreleasepool {
+            let appURL = try findAppBundle(in: mountURL)
+            try copyRuntimeFromAppBundle(appURL, to: stagingURL)
+        }
     }
 
     private func installRuntimeFromArchive(_ archiveURL: URL, extractURL: URL, stagingURL: URL) throws {

@@ -33,7 +33,7 @@ extension ContentView {
                                 }
                                 .buttonStyle(.borderless)
                                 .controlSize(.small)
-                                .help("Cancel download")
+                                .help("Cancel Download")
                             }
                         }
                     } else {
@@ -94,7 +94,7 @@ extension ContentView {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
-                .help("Skip runtime and Google Play update checks")
+                .help("Skip Runtime and Google Play Update Checks")
                 .disabled(!model.canSkipRuntimeUpdateCheck)
                 .opacity(model.canSkipRuntimeUpdateCheck ? 1 : 0)
                 .accessibilityHidden(!model.canSkipRuntimeUpdateCheck)
@@ -124,7 +124,7 @@ extension ContentView {
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
-        .help("Cancel runtime download")
+        .help("Cancel Runtime Download")
     }
 
     private func inlineProgressText(primary: String, secondary: String? = nil, height: CGFloat = 31) -> some View {

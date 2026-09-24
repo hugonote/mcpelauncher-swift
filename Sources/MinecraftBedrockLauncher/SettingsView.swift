@@ -208,7 +208,7 @@ struct SettingsView: View {
         } message: {
             Text("Minecraft will start automatically.\n\nHold Option (⌥) during startup to cancel Quick Launch.")
         }
-        .alert("Allow Unsupported Versions?", isPresented: $isPresentingUnsupportedVersionsWarning) {
+        .alert("Allow unsupported versions?", isPresented: $isPresentingUnsupportedVersionsWarning) {
             Button("Allow Anyway", role: .destructive) {
                 allowUnsupportedMinecraftVersions = true
                 model.refreshSelectedVersionCompatibility()

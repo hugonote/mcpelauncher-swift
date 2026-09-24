@@ -56,7 +56,7 @@ struct LauncherTouchBarState {
     @MainActor
     private static func primaryButtonTitle(_ model: LauncherViewModel) -> String {
         if LauncherTouchBarRules.needsCredentialRefresh(model) {
-            return "Sign in"
+            return "Sign In…"
         }
         if LauncherTouchBarRules.isPurchaseRequired(model) {
             return "Switch Account"
@@ -79,7 +79,7 @@ struct LauncherTouchBarState {
             return "Download"
         }
         if model.credential == nil {
-            return "Sign in"
+            return "Sign In…"
         }
         if model.downloadState.phase == .failed {
             return "Retry"

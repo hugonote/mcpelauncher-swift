@@ -77,7 +77,7 @@ extension ContentView {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
-                .help("Version details")
+                .help("Version Details")
                 .popover(isPresented: $isShowingVersionInfo, arrowEdge: .bottom) {
                     versionInfoPopover
                 }

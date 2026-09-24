@@ -72,7 +72,7 @@ struct ContentView: View {
         }
         .alert("Sign out?", isPresented: $model.showingSignOutConfirmation) {
             Button("Cancel", role: .cancel) {}
-            Button("Sign out", role: .destructive) {
+            Button("Sign Out", role: .destructive) {
                 model.signOut()
             }
         } message: {

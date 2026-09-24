@@ -71,7 +71,7 @@ extension ContentView {
         .buttonBorderShape(.circle)
         .controlSize(.large)
         .fixedSize()
-        .help("Play installed version")
+        .help("Play Installed Version")
         .disabled(isDisabled)
     }
 
@@ -115,7 +115,7 @@ extension ContentView {
 
     private var primaryButtonTitle: String {
         if needsCredentialRefresh {
-            return "Sign in"
+            return "Sign In…"
         }
         if isPurchaseRequired {
             return "Switch Account"
@@ -138,7 +138,7 @@ extension ContentView {
             return "Download"
         }
         if model.credential == nil {
-            return "Sign in"
+            return "Sign In…"
         }
         if model.downloadState.phase == .failed {
             return "Retry"

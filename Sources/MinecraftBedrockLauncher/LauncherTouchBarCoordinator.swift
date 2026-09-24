@@ -214,8 +214,8 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
             attributes: TouchBarMetrics.secondaryButtonTitleAttributes
         )
         button.image = Self.symbol("forward.end", accessibilityLabel: "Skip")
-        button.toolTip = "Skip runtime and Google Play update checks"
-        button.setAccessibilityLabel("Skip runtime and Google Play update checks")
+        button.toolTip = "Skip Runtime and Google Play Update Checks"
+        button.setAccessibilityLabel("Skip Runtime and Google Play Update Checks")
         NSLayoutConstraint.activate([
             button.widthAnchor.constraint(equalToConstant: TouchBarMetrics.skipButtonWidth),
             button.heightAnchor.constraint(equalToConstant: TouchBarMetrics.height)
@@ -228,21 +228,21 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
 
     private func signInItem() -> NSTouchBarItem {
         let item = NSCustomTouchBarItem(identifier: ItemID.signIn)
-        let button = signInButton ?? NSButton(title: "Sign in", target: self, action: #selector(signIn))
+        let button = signInButton ?? NSButton(title: "Sign In…", target: self, action: #selector(signIn))
         signInButton = button
         setupButton(button)
         button.imagePosition = .imageLeading
         button.font = .systemFont(ofSize: 13, weight: .semibold)
         button.target = self
         button.action = #selector(signIn)
-        button.title = "Sign in"
+        button.title = "Sign In…"
         button.attributedTitle = NSAttributedString(
-            string: "Sign in",
+            string: "Sign In…",
             attributes: TouchBarMetrics.secondaryButtonTitleAttributes
         )
-        button.image = Self.symbol("person.crop.circle.badge.plus", accessibilityLabel: "Sign in")
-        button.toolTip = "Sign in"
-        button.setAccessibilityLabel("Sign in")
+        button.image = Self.symbol("person.crop.circle.badge.plus", accessibilityLabel: "Sign In")
+        button.toolTip = "Sign In"
+        button.setAccessibilityLabel("Sign In")
         if let widthConstraint = button.constraints.first(where: { $0.identifier == TouchBarMetrics.signInWidthConstraintID }) {
             widthConstraint.constant = TouchBarMetrics.signInButtonWidth
         } else {
@@ -254,7 +254,7 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
             ])
         }
         item.view = button
-        item.customizationLabel = "Sign in"
+        item.customizationLabel = "Sign In"
         item.visibilityPriority = .high
         return item
     }

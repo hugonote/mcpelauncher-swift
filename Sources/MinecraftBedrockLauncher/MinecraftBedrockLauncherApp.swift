@@ -396,7 +396,7 @@ struct MinecraftBedrockLauncherApp: App {
 
             if AppUpdateConfiguration.isEnabled {
                 CommandGroup(after: .appInfo) {
-                    Button("Check for Updates...") {
+                    Button("Check for Updates…") {
                         appDelegate.checkForUpdates(nil)
                     }
                 }
@@ -417,7 +417,7 @@ struct MinecraftBedrockLauncherApp: App {
 
                 Divider()
 
-                Button(model.credential == nil ? "Sign In..." : "Sign Out...") {
+                Button(model.credential == nil ? "Sign In…" : "Sign Out…") {
                     if model.credential == nil {
                         model.showingLogin = true
                     } else {
@@ -434,13 +434,13 @@ struct MinecraftBedrockLauncherApp: App {
                     Text("Open Data Folder")
                 }
 
-                Button("Import Minecraft Content...") {
+                Button("Import Minecraft Content…") {
                     ContentImportOpenFileQueue.shared.requestOpenPanel()
                 }
             }
 
             CommandGroup(replacing: .help) {
-                Button("Report an Issue...") {
+                Button("Report an Issue…") {
                     NSWorkspace.shared.open(
                         URL(string: "https://github.com/hugonote/mcpelauncher-swift/issues/new")!
                     )

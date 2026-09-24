@@ -14,7 +14,7 @@ extension ContentView {
                 .help(model.displayCredentialEmail ?? "Not signed in")
 
             if model.credential == nil {
-                Button("Sign In") {
+                Button("Sign In…") {
                     model.showingLogin = true
                 }
                 .buttonStyle(.link)
@@ -26,7 +26,7 @@ extension ContentView {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
                 }
                 .buttonStyle(.borderless)
-                .help("Sign out")
+                .help("Sign Out")
             }
         }
         .frame(height: 28)

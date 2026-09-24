@@ -44,7 +44,7 @@ enum LauncherIssue: Equatable {
         self == .networkUnavailable
     }
 
-    var centerText: String? {
+    var centerText: String {
         switch self {
         case .networkUnavailable:
             return "No internet connection"
@@ -69,7 +69,7 @@ enum LauncherIssue: Equatable {
         case .insufficientDiskSpace:
             return "Not enough disk space"
         case .generic:
-            return nil
+            return "Something went wrong"
         }
     }
 

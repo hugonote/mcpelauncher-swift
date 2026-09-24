@@ -7,6 +7,8 @@ struct ContentView: View {
     @ObservedObject var model: LauncherViewModel
     @ObservedObject var appDelegate: AppDelegate
     @State var isShowingVersionInfo = false
+    @State var isShowingErrorDetails = false
+    @State var didCopyError = false
     @State var isStartupComplete = false
     @State var isTitleIconVisible = false
     @State private var isPresentingRunningGameWarning = false

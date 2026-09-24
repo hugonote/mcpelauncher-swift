@@ -31,7 +31,7 @@ public struct FinskyGooglePlayClient: Sendable {
         } catch let error as LauncherError {
             throw error
         } catch let error as FinskyError {
-            throw mapFinskyError(error, account: request.accountIdentifier)
+            throw Self.mapFinskyError(error, account: request.accountIdentifier)
         }
     }
 
@@ -55,7 +55,7 @@ public struct FinskyGooglePlayClient: Sendable {
         } catch let error as LauncherError {
             throw error
         } catch let error as FinskyError {
-            throw mapFinskyError(error, account: credential.email)
+            throw Self.mapFinskyError(error, account: credential.email)
         }
     }
 
@@ -93,7 +93,7 @@ public struct FinskyGooglePlayClient: Sendable {
         } catch let error as LauncherError {
             throw error
         } catch let error as FinskyError {
-            throw mapFinskyError(error, account: credential.email)
+            throw Self.mapFinskyError(error, account: credential.email)
         }
     }
 
@@ -115,7 +115,7 @@ public struct FinskyGooglePlayClient: Sendable {
         } catch let error as LauncherError {
             throw error
         } catch let error as FinskyError {
-            throw mapFinskyError(error, account: credential.email)
+            throw Self.mapFinskyError(error, account: credential.email)
         }
     }
 
@@ -126,9 +126,12 @@ public struct FinskyGooglePlayClient: Sendable {
         return finskyCredential
     }
 
-    private func mapFinskyError(_ error: FinskyError, account: String?) -> LauncherError {
+    static func mapFinskyError(_ error: FinskyError, account: String?) -> LauncherError {
         switch error {
         case .notOwned, .notPurchased, .noEntitlement:
+            return .minecraftNotOwned(account: account)
+        case .unavailable(_, let message)
+            where message.localizedCaseInsensitiveContains("deliveryResponse(status=2"):
             return .minecraftNotOwned(account: account)
         case .httpStatus(let code, _) where code == 401:
             return .googlePlayCredentialRequiresSignIn

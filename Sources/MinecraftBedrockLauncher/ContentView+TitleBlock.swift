@@ -68,7 +68,20 @@ extension ContentView {
                 .lineLimit(subtitleLineLimit)
                 .help(subtitleMessage?.detail ?? versionText)
 
-            if shouldShowVersionInfoButton {
+            if let error = subtitleError {
+                Button {
+                    isShowingErrorDetails.toggle()
+                } label: {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Error Details")
+                .popover(isPresented: $isShowingErrorDetails, arrowEdge: .bottom) {
+                    errorDetailsPopover(error)
+                }
+            } else if shouldShowVersionInfoButton {
                 Button {
                     isShowingVersionInfo.toggle()
                 } label: {
@@ -126,6 +139,50 @@ extension ContentView {
         .padding(12)
         .frame(width: 166)
         .task { await model.refreshRuntimeReleases() }
+    }
+
+    private func errorDetailsPopover(_ error: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Error Details")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                        didCopyError = NSPasteboard.general.setString(error, forType: .string)
+                    }
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                            didCopyError = false
+                        }
+                    }
+                } label: {
+                    ZStack(alignment: .trailing) {
+                        if didCopyError {
+                            Label("Copied", systemImage: "checkmark")
+                                .transition(.blurReplace)
+                        } else {
+                            Label("Copy", systemImage: "doc.on.doc")
+                                .transition(.blurReplace)
+                        }
+                    }
+                    .frame(width: 68, alignment: .trailing)
+                }
+                .buttonStyle(.borderless)
+                .help(didCopyError ? "Copied" : "Copy Error")
+            }
+
+            ScrollView {
+                Text(error)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(12)
+        .frame(width: 280, height: 180)
     }
 
     private var runtimeVersionInfoRow: some View {
@@ -311,12 +368,19 @@ extension ContentView {
         guard !isPurchaseRequired, !isShowingProgress else {
             return nil
         }
-        if let error = model.errorText
-            ?? (model.runtimeState.phase == .failed ? model.runtimeState.error ?? "Runtime failed" : nil)
-            ?? (model.downloadState.phase == .failed ? model.downloadState.error ?? "Download failed" : nil) {
-            return (centerErrorText(for: error), error)
+        if let error = subtitleError {
+            return (centerErrorText, error)
         }
         return model.updateWarningText.map { ($0, $0) }
+    }
+
+    private var subtitleError: String? {
+        guard !isPurchaseRequired, !isShowingProgress else {
+            return nil
+        }
+        return model.errorText
+            ?? (model.runtimeState.phase == .failed ? model.runtimeState.error ?? "Runtime failed" : nil)
+            ?? (model.downloadState.phase == .failed ? model.downloadState.error ?? "Download failed" : nil)
     }
 
     private var shouldShowVersionInfoButton: Bool {
@@ -418,10 +482,7 @@ extension ContentView {
         return model.selectedVersion == nil && model.downloadState.phase != .installed
     }
 
-    private func centerErrorText(for error: String) -> String {
-        if let centerText = model.activeIssue?.centerText {
-            return centerText
-        }
-        return error
+    private var centerErrorText: String {
+        model.activeIssue?.centerText ?? "Something went wrong"
     }
 }

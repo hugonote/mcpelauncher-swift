@@ -19,6 +19,11 @@ struct GoogleLoginSheet: View {
                 Text("Google Play Sign In")
                     .font(.title2)
                     .fontWeight(.semibold)
+                if isCompleting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Signing In")
+                }
                 Spacer()
                 Button {
                     cancelLogin()
@@ -49,19 +54,18 @@ struct GoogleLoginSheet: View {
             }
             .frame(minWidth: 520, minHeight: 560)
 
-            HStack {
-                Text(loginStatusMessage)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if isCompleting {
-                    ProgressView()
-                        .controlSize(.small)
-                } else if completionFailed {
-                    Button("Retry") {
-                        completionFailed = false
-                        completeAfterGoogleSettles()
+            if let loginStatusMessage {
+                HStack {
+                    Text(loginStatusMessage)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if completionFailed {
+                        Button("Retry") {
+                            completionFailed = false
+                            completeAfterGoogleSettles()
+                        }
+                        .launcherProminentButtonStyle()
                     }
-                    .launcherProminentButtonStyle()
                 }
             }
         }
@@ -71,15 +75,15 @@ struct GoogleLoginSheet: View {
         }
     }
 
-    private var loginStatusMessage: String {
+    private var loginStatusMessage: String? {
         if isCompleting {
-            return "OAuth token captured. Completing sign in"
+            return nil
         }
         if completionFailed {
             return model.errorText ?? "Could not complete Google sign in."
         }
         if capturedOAuthToken.isEmpty {
-            return "Finish the Google prompt. The launcher will close this window automatically."
+            return nil
         }
         if accountIdentifier.isEmpty {
             return "Waiting for Google account details"

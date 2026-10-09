@@ -115,7 +115,7 @@ extension ContentView {
 
     private var primaryButtonTitle: String {
         if needsCredentialRefresh {
-            return "Sign In…"
+            return "Sign In"
         }
         if isPurchaseRequired {
             return "Switch Account"
@@ -138,7 +138,7 @@ extension ContentView {
             return "Download"
         }
         if model.credential == nil {
-            return "Sign In…"
+            return "Sign In"
         }
         if model.downloadState.phase == .failed {
             return "Retry"

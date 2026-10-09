@@ -11,7 +11,6 @@ struct ContentView: View {
     @State var didCopyError = false
     @State var isStartupComplete = false
     @State var isTitleIconVisible = false
-    @State private var isPresentingRunningGameWarning = false
     @State var window: NSWindow?
     @State var pendingQuickLaunch = false
     @State var contentImportPanelDelegate: ContentImportOpenPanelDelegate?
@@ -85,6 +84,24 @@ struct ContentView: View {
         } message: {
             Text(contentImportResultMessage)
         }
+        .background {
+            Color.clear
+                .alert("Minecraft is already running.", isPresented: $model.isShowingRunningGameWarning) {
+                    Button("Cancel", role: .cancel) {
+                        model.cancelRunningGameWarning()
+                    }
+                    Button("Launch Anyway", role: .destructive) {
+                        Task { await model.launchAnywayAfterRunningGameWarning() }
+                    }
+                } message: {
+                    Text("""
+                    Launching another copy will use the same worlds, settings, and cache. This can corrupt saved data or leave Minecraft in an inconsistent state.
+
+                    Continue only if you know why you need another copy.
+                    """)
+                }
+                .dialogSeverity(.critical)
+        }
         .background(WindowConfigurator(window: $window))
         .background(
             QuickLaunchOptionMonitor(isActive: model.isQuickLaunchActive) {
@@ -97,11 +114,6 @@ struct ContentView: View {
         }
         .onChange(of: model.runtimeState) { _, _ in
             updateDockProgress()
-        }
-        .onChange(of: model.isShowingRunningGameWarning) { _, isShowing in
-            if isShowing {
-                presentRunningGameWarning()
-            }
         }
         .onChange(of: isContentDropTargeted) { _, isTargeted in
             if isTargeted {
@@ -201,42 +213,6 @@ struct ContentView: View {
         StartupWindowVisibility.shared.revealLauncherWindow()
     }
 
-    private func presentRunningGameWarning() {
-        guard !isPresentingRunningGameWarning else {
-            return
-        }
-        isPresentingRunningGameWarning = true
-
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.icon = Self.cautionIcon
-        alert.messageText = "Minecraft is already running"
-        alert.informativeText = """
-        Launching another copy will use the same worlds, settings, and cache. This can corrupt saved data or leave Minecraft in an inconsistent state.
-
-        Continue only if you know why you need another copy.
-        """
-        alert.addButton(withTitle: "Cancel")
-        let launchButton = alert.addButton(withTitle: "Launch Anyway")
-        launchButton.keyEquivalent = ""
-        launchButton.hasDestructiveAction = true
-
-        let handleResponse: (NSApplication.ModalResponse) -> Void = { response in
-            isPresentingRunningGameWarning = false
-            if response == .alertSecondButtonReturn {
-                Task { await model.launchAnywayAfterRunningGameWarning() }
-            } else {
-                model.cancelRunningGameWarning()
-            }
-        }
-
-        if let window {
-            alert.beginSheetModal(for: window, completionHandler: handleResponse)
-        } else {
-            handleResponse(alert.runModal())
-        }
-    }
-
     func playTitleIconEntranceIfNeeded() {
         guard isStartupComplete else {
             return
@@ -283,17 +259,4 @@ struct ContentView: View {
         }
         return 28
     }
-
-    private static let cautionIcon: NSImage = {
-        let size = NSSize(width: 64, height: 64)
-        guard let source = NSImage(named: NSImage.cautionName) else {
-            return NSImage(size: size)
-        }
-        source.size = size
-        let baked = NSImage(size: size)
-        baked.lockFocus()
-        source.draw(in: NSRect(origin: .zero, size: size))
-        baked.unlockFocus()
-        return baked
-    }()
 }

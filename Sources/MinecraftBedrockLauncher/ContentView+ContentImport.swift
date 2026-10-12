@@ -140,32 +140,44 @@ extension ContentView {
     }
 
     func presentContentImportPanel() {
-        let panel = NSOpenPanel()
-        let panelDelegate = ContentImportOpenPanelDelegate()
-        contentImportPanelDelegate = panelDelegate
-        panel.delegate = panelDelegate
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.message = "Choose Minecraft Bedrock content files to import."
-        panel.prompt = "Import"
+        isShowingContentImporter = true
+    }
 
-        let handleResponse: (NSApplication.ModalResponse) -> Void = { response in
-            guard response == .OK else {
-                contentImportPanelDelegate = nil
-                return
+    var contentImportDialogs: some View {
+        Color.clear
+            .fileImporter(
+                isPresented: $isShowingContentImporter,
+                allowedContentTypes: ContentImportOpenFileQueue.allowedContentTypes,
+                allowsMultipleSelection: true
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    Task { await showContentImportResult(for: urls) }
+                case .failure(let error):
+                    showContentImportAlert(title: "Could not open Minecraft content", message: error.localizedDescription)
+                }
             }
-            Task {
-                await showContentImportResult(for: panel.urls)
-                contentImportPanelDelegate = nil
+            .fileDialogMessage("Choose Minecraft Bedrock content files to import.")
+            .fileDialogConfirmationLabel("Import")
+            .alert(
+                contentImportConfirmation.warnings.count == 1
+                    ? "Minecraft content may be incompatible"
+                    : "Some Minecraft content may be incompatible",
+                isPresented: Binding(
+                    get: { contentImportConfirmation.isPresented },
+                    set: { if !$0 { contentImportConfirmation.resolve(false) } }
+                )
+            ) {
+                Button("Skip", role: .cancel) {
+                    contentImportConfirmation.resolve(false)
+                }
+                Button("Import Anyway", role: .destructive) {
+                    contentImportConfirmation.resolve(true)
+                }
+            } message: {
+                Text(incompatibleContentMessage(for: contentImportConfirmation.warnings))
             }
-        }
-
-        if let window {
-            panel.beginSheetModal(for: window, completionHandler: handleResponse)
-        } else {
-            handleResponse(panel.runModal())
-        }
+            .dialogSeverity(.critical)
     }
 
     private func appendQueuedContentFilesToActiveImport() -> Bool {
@@ -183,42 +195,12 @@ extension ContentView {
         guard let result = await model.importContentFiles(
             urls,
             shouldImportIncompatibleContent: { warnings in
-                await confirmIncompatibleContentImport(warnings)
+                await contentImportConfirmation.confirm(warnings)
             }
         ) else {
             return
         }
         showContentImportAlert(title: result.title, message: result.message)
-    }
-
-    @MainActor
-    private func confirmIncompatibleContentImport(_ warnings: [ContentPackCompatibilityWarning]) async -> Bool {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = warnings.count == 1
-            ? "Minecraft content may be incompatible"
-            : "Some Minecraft content may be incompatible"
-        alert.informativeText = incompatibleContentMessage(for: warnings)
-        if let icon = NSImage(named: NSImage.cautionName) {
-            alert.icon = icon
-        }
-        let skipButton = alert.addButton(withTitle: "Skip")
-        skipButton.keyEquivalent = "\r"
-        let importButton = alert.addButton(withTitle: "Import Anyway")
-        importButton.keyEquivalent = ""
-        importButton.hasDestructiveAction = true
-
-        let response: NSApplication.ModalResponse
-        if let window {
-            response = await withCheckedContinuation { continuation in
-                alert.beginSheetModal(for: window) { modalResponse in
-                    continuation.resume(returning: modalResponse)
-                }
-            }
-        } else {
-            response = alert.runModal()
-        }
-        return response == .alertSecondButtonReturn
     }
 
     private func incompatibleContentMessage(for warnings: [ContentPackCompatibilityWarning]) -> String {
@@ -365,20 +347,5 @@ private final class ContentImportDropTargetView: NSView {
         let objects = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self])
         let urls = (objects as? [URL]) ?? (objects as? [NSURL])?.map { $0 as URL } ?? []
         return urls.filter(ContentImportOpenFileQueue.isSupportedContentURL)
-    }
-}
-
-final class ContentImportOpenPanelDelegate: NSObject, NSOpenSavePanelDelegate {
-    func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
-        if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-            return true
-        }
-        return ContentImportOpenFileQueue.isSupportedContentURL(url)
-    }
-
-    func panel(_ sender: Any, validate url: URL) throws {
-        guard ContentImportOpenFileQueue.isSupportedContentURL(url) else {
-            throw CocoaError(.fileReadUnsupportedScheme)
-        }
     }
 }

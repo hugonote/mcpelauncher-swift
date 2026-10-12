@@ -79,7 +79,7 @@ final class LauncherTouchBarCoordinator: NSObject, NSTouchBarDelegate {
         case ItemID.contentImport:
             return iconButtonItem(
                 identifier: identifier,
-                systemImage: "square.and.arrow.down",
+                systemImage: "arrow.down.app.dashed",
                 label: "Import Minecraft Content",
                 action: #selector(importContent)
             )

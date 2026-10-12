@@ -36,12 +36,14 @@ extension LauncherViewModel {
             return nil
         }
 
-        activeContentImportURLs = supportedURLs
-        pendingContentImportURLs = supportedURLs
         completedContentImportFileCount = 0
-        refreshContentImportPresentation()
+        appendContentImportURLs(supportedURLs)
         isImportingContent = true
         defer {
+            for url in securityScopedContentImportURLs {
+                url.stopAccessingSecurityScopedResource()
+            }
+            securityScopedContentImportURLs.removeAll()
             isImportingContent = false
             importingContentDescription = nil
             contentImportProgress = nil
@@ -104,6 +106,7 @@ extension LauncherViewModel {
     }
 
     private func appendContentImportURLs(_ urls: [URL]) {
+        securityScopedContentImportURLs.append(contentsOf: urls.filter { $0.startAccessingSecurityScopedResource() })
         activeContentImportURLs.append(contentsOf: urls)
         pendingContentImportURLs.append(contentsOf: urls)
         refreshContentImportPresentation()

@@ -162,6 +162,7 @@ final class LauncherViewModel: ObservableObject {
     var activeDownloadOutputURL: URL?
     var pendingRunningGameLaunch: PendingGameLaunch?
     var activeContentImportURLs: [URL] = []
+    var securityScopedContentImportURLs: [URL] = []
     var pendingContentImportURLs: [URL] = []
     var completedContentImportFileCount = 0
     var didLoadRuntimeReleases = false

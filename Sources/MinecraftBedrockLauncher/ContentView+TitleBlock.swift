@@ -240,25 +240,26 @@ extension ContentView {
             model.selectRuntimeVersion(nil)
             return
         }
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Compatibility Risk"
-        alert.informativeText = "Older runtime versions may be incompatible with the installed Minecraft version."
-        alert.addButton(withTitle: "Cancel")
-        let replaceButton = alert.addButton(withTitle: "Download Anyway")
-        replaceButton.keyEquivalent = ""
-        replaceButton.hasDestructiveAction = true
+        pendingRuntimeVersion = version
+        isShowingRuntimeVersionWarning = true
+    }
 
-        let handleResponse: (NSApplication.ModalResponse) -> Void = { response in
-            if response == .alertSecondButtonReturn {
-                model.selectRuntimeVersion(version)
+    var runtimeVersionWarning: some View {
+        Color.clear
+            .alert("Compatibility Risk", isPresented: $isShowingRuntimeVersionWarning) {
+                Button("Cancel", role: .cancel) {
+                    pendingRuntimeVersion = nil
+                }
+                Button("Download Anyway", role: .destructive) {
+                    if let version = pendingRuntimeVersion {
+                        model.selectRuntimeVersion(version)
+                    }
+                    pendingRuntimeVersion = nil
+                }
+            } message: {
+                Text("Older runtime versions may be incompatible with the installed Minecraft version.")
             }
-        }
-        if let window {
-            alert.beginSheetModal(for: window, completionHandler: handleResponse)
-        } else {
-            handleResponse(alert.runModal())
-        }
+            .dialogSeverity(.critical)
     }
 
     private func versionInfoRow(_ title: String, _ value: String) -> some View {

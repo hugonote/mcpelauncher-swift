@@ -13,7 +13,10 @@ struct ContentView: View {
     @State var isTitleIconVisible = false
     @State var window: NSWindow?
     @State var pendingQuickLaunch = false
-    @State var contentImportPanelDelegate: ContentImportOpenPanelDelegate?
+    @State var isShowingContentImporter = false
+    @State var contentImportConfirmation = ContentImportConfirmation()
+    @State var pendingRuntimeVersion: String?
+    @State var isShowingRuntimeVersionWarning = false
     @State var contentImportDropPreview: ContentImportDropPreview?
     @State var contentImportResultTitle = ""
     @State var contentImportResultMessage = ""
@@ -68,6 +71,8 @@ struct ContentView: View {
         }
         .animation(contentDropStateAnimation, value: isContentDropTargeted)
         .background(contentImportDropTarget)
+        .background(contentImportDialogs)
+        .background(runtimeVersionWarning)
         .sheet(isPresented: $model.showingLogin) {
             GoogleLoginSheet(model: model)
         }
@@ -129,6 +134,7 @@ struct ContentView: View {
             presentContentImportPanel()
         }
         .onDisappear {
+            contentImportConfirmation.resolve(false)
             DockProgressController.shared.clear()
         }
         .task(id: appDelegate.isInitialStartupComplete) {

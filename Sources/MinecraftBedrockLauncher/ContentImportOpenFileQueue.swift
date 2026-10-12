@@ -1,9 +1,13 @@
 import Foundation
 import MinecraftBedrockLauncherCore
+import UniformTypeIdentifiers
 
 @MainActor
 final class ContentImportOpenFileQueue {
     static let shared = ContentImportOpenFileQueue()
+
+    static let allowedContentTypes = ["mcpack", "mcaddon", "mcworld", "mctemplate"]
+        .compactMap { UTType(filenameExtension: $0) }
 
     static let filesOpenedNotification = Notification.Name("local.minecraft.bedrock.swiftlauncher.contentFilesOpened")
     static let openPanelRequestedNotification = Notification.Name("local.minecraft.bedrock.swiftlauncher.contentOpenPanelRequested")

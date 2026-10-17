@@ -2,7 +2,7 @@
 set -euo pipefail
 
 MOD_DIR="${0:A:h}"
-ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-/opt/homebrew/share/android-ndk}"
+ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-/opt/homebrew/share/android-ndk}}"
 OUTPUT_DIR="${1:-$MOD_DIR/build/out}"
 
 if [[ ! -f "$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" ]]; then
@@ -10,7 +10,12 @@ if [[ ! -f "$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" ]]; then
   exit 1
 fi
 
-cmake -S "$MOD_DIR" -B "$MOD_DIR/build" -G Ninja \
+GENERATOR=()
+if command -v ninja > /dev/null; then
+  GENERATOR=(-G Ninja)
+fi
+
+cmake -S "$MOD_DIR" -B "$MOD_DIR/build" "${GENERATOR[@]}" \
   -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
   -DANDROID_ABI=arm64-v8a \
   -DANDROID_PLATFORM=android-24 \

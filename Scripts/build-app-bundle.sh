@@ -74,6 +74,11 @@ done
 install -m 755 "$BUILD_DIR/mcpelauncher-ui-qt" "$APP_DIR/Contents/Helpers/mcpelauncher-ui-qt"
 install -m 755 "$BUILD_DIR/mcpelauncher-webview" "$APP_DIR/Contents/Helpers/mcpelauncher-webview"
 install -m 755 "$BUILD_DIR/mcpelauncher-client-wrapper" "$APP_DIR/Contents/Helpers/mcpelauncher-client-wrapper"
+xcrun clang -isysroot "$(xcrun --sdk macosx --show-sdk-path)" -dynamiclib -arch arm64 -O2 -Wall -Wextra -Werror \
+  -mmacosx-version-min="$MACOS_DEPLOYMENT_TARGET" \
+  -o "$APP_DIR/Contents/Helpers/libangle-platform-override.dylib" \
+  "$PACKAGE_DIR/Support/angle-platform-override/angle_platform_override.c"
+"$PACKAGE_DIR/RuntimeMods/macos-fixes/build.sh" "$APP_DIR/Contents/Resources/RuntimeMods/macos-fixes" >/dev/null
 
 SPARKLE_FRAMEWORK="$BUILD_DIR/Sparkle.framework"
 if [[ ! -d "$SPARKLE_FRAMEWORK" ]]; then

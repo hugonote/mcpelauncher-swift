@@ -33,6 +33,12 @@ struct SettingsView: View {
     @AppStorage(LauncherPreferences.vSyncEnabledKey)
     private var vSyncEnabled = true
 
+    @AppStorage(LauncherPreferences.metalHUDEnabledKey)
+    private var metalHUDEnabled = false
+
+    @AppStorage(LauncherPreferences.graphicsBackendKey)
+    private var graphicsBackend = RuntimeGraphicsBackend.vulkan.rawValue
+
     @State private var pendingDeleteAction: DeleteAction?
     @State private var completedAction: DeleteAction?
     @State private var isPresentingQuickLaunchWarning = false
@@ -40,125 +46,125 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Updates")
-                    .font(.headline)
-
-                VStack(spacing: 0) {
-                    ToggleRow(
-                        title: "Launcher",
-                        subtitle: "Keep this app up to date",
-                        systemImage: "arrow.down.app",
-                        isOn: $automaticallyCheckLauncherUpdates
-                    )
-                    Divider()
-                    ToggleRow(
-                        title: "Runtime",
-                        subtitle: "Keep native components up to date",
-                        systemImage: "cpu",
-                        isOn: $automaticallyCheckRuntimeUpdates
-                    )
-                    Divider()
-                    MenuPickerRow(
-                        title: "Minecraft",
-                        subtitle: "Keep Minecraft up to date",
-                        systemImage: "cube",
-                        selection: minecraftUpdateModeBinding,
-                        options: [
-                            .init(title: "Off", value: MinecraftUpdateMode.off.rawValue),
-                            .init(title: "Check", value: MinecraftUpdateMode.onlyCheck.rawValue),
-                            .init(title: "Install", value: MinecraftUpdateMode.checkAndInstall.rawValue)
-                        ],
-                        isDisabled: !automaticallyCheckRuntimeUpdates
-                    )
-                    Divider()
-                    ToggleRow(
-                        title: "Unsupported Versions",
-                        subtitle: "Allow unverified Minecraft updates",
-                        systemImage: "exclamationmark.triangle",
-                        isOn: unsupportedMinecraftVersionsBinding
-                    )
-                }
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            SettingsSection(title: "Updates") {
+                ToggleRow(
+                    title: "Launcher",
+                    subtitle: "Keep this app up to date",
+                    systemImage: "arrow.down.app",
+                    isOn: $automaticallyCheckLauncherUpdates
+                )
+                Divider()
+                ToggleRow(
+                    title: "Runtime",
+                    subtitle: "Keep native components up to date",
+                    systemImage: "cpu",
+                    isOn: $automaticallyCheckRuntimeUpdates
+                )
+                Divider()
+                MenuPickerRow(
+                    title: "Minecraft",
+                    subtitle: "Keep Minecraft up to date",
+                    systemImage: "cube",
+                    selection: minecraftUpdateModeBinding,
+                    options: [
+                        .init(title: "Off", value: MinecraftUpdateMode.off.rawValue),
+                        .init(title: "Check", value: MinecraftUpdateMode.onlyCheck.rawValue),
+                        .init(title: "Install", value: MinecraftUpdateMode.checkAndInstall.rawValue)
+                    ],
+                    isDisabled: !automaticallyCheckRuntimeUpdates
+                )
+                Divider()
+                ToggleRow(
+                    title: "Unsupported Versions",
+                    subtitle: "Allow unverified Minecraft updates",
+                    systemImage: "exclamationmark.triangle",
+                    isOn: unsupportedMinecraftVersionsBinding
+                )
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Game")
-                    .font(.headline)
-
-                VStack(spacing: 0) {
-                    ToggleRow(
-                        title: "Quick Launch",
-                        subtitle: "Start Minecraft automatically",
-                        systemImage: "bolt.fill",
-                        isOn: quickLaunchBinding
-                    )
-                    Divider()
-                    ToggleRow(
-                        title: "Status Bar",
-                        subtitle: "Show runtime menu in Minecraft",
-                        systemImage: "menubar.rectangle",
-                        isOn: $showInGameStatusBar
-                    )
-                    Divider()
-                    ToggleRow(
-                        title: "VSync",
-                        subtitle: "Synchronize frame pacing",
-                        systemImage: "display",
-                        isOn: $vSyncEnabled
-                    )
-                    Divider()
-                    MenuPickerRow(
-                        title: "FPS Counter",
-                        subtitle: "Frame rate overlay",
-                        systemImage: "speedometer",
-                        selection: $fpsCounterVisibility,
-                        options: [
-                            .init(title: "Off", value: RuntimeHUDVisibility.off.rawValue),
-                            .init(title: "In Game", value: RuntimeHUDVisibility.inGame.rawValue),
-                            .init(title: "Always", value: RuntimeHUDVisibility.always.rawValue)
-                        ]
-                    )
-                }
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            SettingsSection(title: "Game") {
+                ToggleRow(
+                    title: "Quick Launch",
+                    subtitle: "Start Minecraft automatically",
+                    systemImage: "bolt.fill",
+                    isOn: quickLaunchBinding
+                )
+                Divider()
+                ToggleRow(
+                    title: "Status Bar",
+                    subtitle: "Show runtime menu in Minecraft",
+                    systemImage: "menubar.rectangle",
+                    isOn: $showInGameStatusBar
+                )
+                Divider()
+                ToggleRow(
+                    title: "VSync",
+                    subtitle: "Synchronize frame pacing",
+                    systemImage: "display",
+                    isOn: $vSyncEnabled
+                )
+                Divider()
+                MenuPickerRow(
+                    title: "FPS Counter",
+                    subtitle: "Frame rate overlay",
+                    systemImage: "speedometer",
+                    selection: $fpsCounterVisibility,
+                    options: [
+                        .init(title: "Off", value: RuntimeHUDVisibility.off.rawValue),
+                        .init(title: "In Game", value: RuntimeHUDVisibility.inGame.rawValue),
+                        .init(title: "Always", value: RuntimeHUDVisibility.always.rawValue)
+                    ]
+                )
+                Divider()
+                ToggleRow(
+                    title: "Metal HUD",
+                    subtitle: "Frame time and GPU overlay",
+                    systemImage: "chart.xyaxis.line",
+                    isOn: $metalHUDEnabled
+                )
+                Divider()
+                MenuPickerRow(
+                    title: "Graphics Backend",
+                    subtitle: "Metal skips Vulkan and MoltenVK (experimental)",
+                    systemImage: "cpu.fill",
+                    selection: $graphicsBackend,
+                    options: [
+                        .init(title: "Vulkan (MoltenVK)", value: RuntimeGraphicsBackend.vulkan.rawValue),
+                        .init(title: "Metal", value: RuntimeGraphicsBackend.metal.rawValue)
+                    ]
+                )
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Storage")
-                    .font(.headline)
-
-                VStack(spacing: 0) {
-                    DeleteRow(
-                        title: "Delete Runtime",
-                        subtitle: "Remove native launcher files",
-                        systemImage: "cpu",
-                        isWorking: model.isDeletingRuntime,
-                        isComplete: completedAction == .runtime,
-                        isDisabled: model.isStorageActionBusy,
-                        action: { pendingDeleteAction = .runtime }
-                    )
-                    Divider()
-                    DeleteRow(
-                        title: "Delete Game",
-                        subtitle: "Remove installed version",
-                        systemImage: "cube",
-                        isWorking: model.isDeletingGame,
-                        isComplete: completedAction == .game,
-                        isDisabled: model.isStorageActionBusy,
-                        action: { pendingDeleteAction = .game }
-                    )
-                    Divider()
-                    DeleteRow(
-                        title: "Delete Data",
-                        subtitle: "Remove saves, settings, and cache",
-                        systemImage: "externaldrive",
-                        isWorking: model.isDeletingData,
-                        isComplete: completedAction == .data,
-                        isDisabled: model.isStorageActionBusy,
-                        action: { pendingDeleteAction = .data }
-                    )
-                }
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            SettingsSection(title: "Storage") {
+                DeleteRow(
+                    title: "Delete Runtime",
+                    subtitle: "Remove native launcher files",
+                    systemImage: "cpu",
+                    isWorking: model.isDeletingRuntime,
+                    isComplete: completedAction == .runtime,
+                    isDisabled: model.isStorageActionBusy,
+                    action: { pendingDeleteAction = .runtime }
+                )
+                Divider()
+                DeleteRow(
+                    title: "Delete Game",
+                    subtitle: "Remove all installed versions",
+                    systemImage: "cube",
+                    isWorking: model.isDeletingGame,
+                    isComplete: completedAction == .game,
+                    isDisabled: model.isStorageActionBusy,
+                    action: { pendingDeleteAction = .game }
+                )
+                Divider()
+                DeleteRow(
+                    title: "Delete Data",
+                    subtitle: "Remove saves, settings, and cache",
+                    systemImage: "externaldrive",
+                    isWorking: model.isDeletingData,
+                    isComplete: completedAction == .data,
+                    isDisabled: model.isStorageActionBusy,
+                    action: { pendingDeleteAction = .data }
+                )
             }
         }
         .padding(16)

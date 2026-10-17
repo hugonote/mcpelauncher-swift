@@ -1,8 +1,9 @@
 import Foundation
 
 public struct CompatibilityPatchManager: @unchecked Sendable {
-    public static let defaultModDBURL = URL(string: "https://raw.githubusercontent.com/minecraft-linux/mcpelauncher-moddb/main/moddb.json")!
+    public static let defaultModDBURL = ModDBClient.defaultURL
     public static let abi = "arm64-v8a"
+    public static let patchModName = "mcpelauncher-updates"
 
     private let paths: AppPaths
     private let processRunner: ProcessRunning
@@ -116,12 +117,8 @@ public struct CompatibilityPatchManager: @unchecked Sendable {
     }
 
     public func resolveLatestPatch() async throws -> CompatibilityPatchRelease {
-        let (data, response) = try await URLSession.shared.data(from: Self.defaultModDBURL)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw LauncherError.runtimeInstallFailed("Compatibility moddb lookup returned HTTP \(http.statusCode).")
-        }
-        let entries = try decoder.decode([ModDBEntry].self, from: data)
-        guard let entry = entries.first(where: { $0.name == "mcpelauncher-updates" }) else {
+        let entries = try await ModDBClient(url: Self.defaultModDBURL).fetchEntries()
+        guard let entry = entries.first(where: { $0.name == Self.patchModName }) else {
             throw LauncherError.runtimeInstallFailed("mcpelauncher-updates was not found in moddb.")
         }
         guard let version = entry.versions
@@ -181,16 +178,7 @@ public struct CompatibilityPatchManager: @unchecked Sendable {
         try fileManager.moveItem(at: downloadedURL, to: archiveURL)
 
         try replaceDirectory(at: extractURL)
-        let result = try processRunner.run(
-            executableURL: URL(fileURLWithPath: "/usr/bin/ditto"),
-            arguments: ["-x", "-k", archiveURL.path, extractURL.path],
-            input: nil,
-            currentDirectoryURL: nil,
-            environment: [:]
-        )
-        guard result.status == 0 else {
-            throw LauncherError.runtimeInstallFailed(result.stderrString)
-        }
+        try ZipArchiveExtractor(processRunner: processRunner).extract(archiveURL, to: extractURL)
 
         try replaceDirectory(at: installPath)
         try copyDirectoryContents(from: extractURL, to: installPath)
@@ -287,71 +275,6 @@ struct InstalledModMetadata: Codable, Equatable {
     var name: String
     var url: String
     var versions: [ModDBVersion]
-}
-
-struct ModDBEntry: Codable, Equatable, Sendable {
-    var name: String
-    var description: String
-    var url: String
-    var image: String
-    var versions: [ModDBVersion]
-}
-
-struct ModDBVersion: Codable, Equatable, Sendable {
-    var version: String
-    var assets: [String: String]
-    var minecraft: String?
-    var extraVersions: [ModDBExtraVersion]
-    var provides: [String: ModDBProvidedVersions]
-
-    var compatibleExtraVersions: [ModDBExtraVersion] {
-        extraVersions + provides.values.flatMap(\.extraVersions)
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case version
-        case assets
-        case minecraft
-        case extraVersions
-        case provides
-    }
-
-    init(
-        version: String,
-        assets: [String: String],
-        minecraft: String? = nil,
-        extraVersions: [ModDBExtraVersion] = [],
-        provides: [String: ModDBProvidedVersions] = [:]
-    ) {
-        self.version = version
-        self.assets = assets
-        self.minecraft = minecraft
-        self.extraVersions = extraVersions
-        self.provides = provides
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        version = try container.decode(String.self, forKey: .version)
-        assets = try container.decodeIfPresent([String: String].self, forKey: .assets) ?? [:]
-        minecraft = try container.decodeIfPresent(String.self, forKey: .minecraft)
-        extraVersions = try container.decodeIfPresent([ModDBExtraVersion].self, forKey: .extraVersions) ?? []
-        provides = try container.decodeIfPresent([String: ModDBProvidedVersions].self, forKey: .provides) ?? [:]
-    }
-}
-
-struct ModDBProvidedVersions: Codable, Equatable, Sendable {
-    var extraVersions: [ModDBExtraVersion]
-}
-
-struct ModDBExtraVersion: Codable, Equatable, Sendable {
-    var versionName: String
-    var codes: [String: Int]
-
-    enum CodingKeys: String, CodingKey {
-        case versionName = "version_name"
-        case codes
-    }
 }
 
 private struct LibraryPatch {

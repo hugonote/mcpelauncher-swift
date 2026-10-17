@@ -360,6 +360,7 @@ final class LauncherUpdateCheckGate: NSObject, SPUUpdaterDelegate {
 struct MinecraftBedrockLauncherApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model: LauncherViewModel
+    @StateObject private var modLibrary: ModLibraryModel
     @Environment(\.openWindow) private var openWindow
 
     init() {
@@ -369,6 +370,7 @@ struct MinecraftBedrockLauncherApp: App {
         LauncherPreferences.registerDefaults()
         let model = LauncherViewModel()
         _model = StateObject(wrappedValue: model)
+        _modLibrary = StateObject(wrappedValue: ModLibraryModel(paths: model.paths, processRunner: model.processRunner))
         appDelegate.configure(model: model, instanceCoordinator: instanceCoordinator)
     }
 
@@ -427,6 +429,18 @@ struct MinecraftBedrockLauncherApp: App {
 
                 Divider()
 
+                Button("Versions...") {
+                    openWindow(id: LauncherWindowID.versions)
+                }
+                .keyboardShortcut("y", modifiers: [.command, .shift])
+
+                Button("Mods...") {
+                    openWindow(id: LauncherWindowID.mods)
+                }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
+
+                Divider()
+
                 Button {
                     NSWorkspace.shared.open(model.dataFolderURL)
                 } label: {
@@ -456,6 +470,16 @@ struct MinecraftBedrockLauncherApp: App {
                 .fixedSize()
         }
         .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+
+        Window("Versions", id: LauncherWindowID.versions) {
+            VersionsView(model: model)
+        }
+        .windowResizability(.contentSize)
+
+        Window("Mods", id: LauncherWindowID.mods) {
+            ModsView(model: model, library: modLibrary)
+        }
         .windowResizability(.contentSize)
     }
 

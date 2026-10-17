@@ -9,3 +9,4 @@ DerivedData/
 *.tmp
 *.log
 Package.resolved
+RuntimeMods/macos-fixes/build/

@@ -19,9 +19,8 @@ extension LauncherViewModel {
                 return
             }
             guard registry.isInstalled(selectedVersion) else {
-                let installedVersions = (try? registry.load()) ?? []
-                self.selectedVersion = installedVersions.first
-                try? registry.save(installedVersions)
+                try? registry.save((try? registry.load()) ?? [])
+                try? reloadInstalledVersions()
                 let downloadTask = startDownloadAndInstallLatest()
                 let installed = await withTaskCancellationHandler {
                     await downloadTask.value
@@ -68,10 +67,17 @@ extension LauncherViewModel {
             }
             let clientWrapperExecutableURL = clientWrapperExecutableURL()
             let clientWrapperIconURL = clientWrapperIconURL()
+            let performance = LauncherPreferences.runtimePerformanceSettings(
+                anglePlatformOverrideURL: bundledHelperURL(named: RuntimePerformanceSettings.anglePlatformOverrideLibraryName)
+            )
+            let modPaths = bundledRuntimeModPaths() + (try modPathsForSelectedVersion(selectedVersion))
+            try await backupWorldsBeforeLaunch(of: selectedVersion)
             try await LaunchCoordinator(launcher: launcher).launchDetached(
                 runtimePath: runtimePath,
                 version: selectedVersion,
                 compatibilityPatchPath: patchPath,
+                modPaths: modPaths,
+                environmentOverrides: performance.environment,
                 dataPath: dataPath,
                 cachePath: cachePath,
                 credentialsHelperDirectory: credentialsHelperDirectory,
@@ -167,6 +173,15 @@ extension LauncherViewModel {
             .appendingPathComponent("Contents", isDirectory: true)
             .appendingPathComponent("Helpers", isDirectory: true)
             .appendingPathComponent(name, isDirectory: false)
+    }
+
+    private func bundledRuntimeModPaths() -> [URL] {
+        guard let resourceURL = Bundle.main.resourceURL else {
+            return []
+        }
+        let macOSFixes = resourceURL
+            .appendingPathComponent("RuntimeMods/macos-fixes/arm64-v8a", isDirectory: true)
+        return FileManager.default.fileExists(atPath: macOSFixes.path) ? [macOSFixes] : []
     }
 
     func credentialsHelperURL() -> URL {

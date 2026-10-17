@@ -25,7 +25,7 @@ enum DeleteAction: Identifiable {
         case .runtime:
             return "Delete runtime?"
         case .game:
-            return "Delete installed game?"
+            return "Delete all installed versions?"
         case .data:
             return "Delete Minecraft data?"
         }

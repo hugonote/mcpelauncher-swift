@@ -146,3 +146,8 @@ struct QuickLaunchOptionMonitor: NSViewRepresentable {
         }
     }
 }
+
+enum LauncherWindowID {
+    static let versions = "versions"
+    static let mods = "mods"
+}

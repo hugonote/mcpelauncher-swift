@@ -37,6 +37,27 @@ public final class InstalledVersionRegistry: @unchecked Sendable {
         try data.write(to: registryURL, options: [.atomic])
     }
 
+    @discardableResult
+    public func upsert(_ version: InstalledVersion) throws -> [InstalledVersion] {
+        let versions = try load().filter { $0.versionName != version.versionName } + [version]
+        try save(versions)
+        return try load()
+    }
+
+    @discardableResult
+    public func remove(_ version: InstalledVersion) throws -> [InstalledVersion] {
+        if fileManager.fileExists(atPath: version.installPath.path) {
+            try fileManager.removeItem(at: version.installPath)
+        }
+        try save(try load().filter { $0.versionName != version.versionName })
+        return try load()
+    }
+
+    public func preferredVersion(named versionName: String?) throws -> InstalledVersion? {
+        let versions = try load()
+        return versions.first { $0.versionName == versionName } ?? versions.first
+    }
+
     public func isInstalled(_ version: InstalledVersion) -> Bool {
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: version.installPath.path, isDirectory: &isDirectory),

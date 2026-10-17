@@ -33,6 +33,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         runtimePath: URL,
         version: InstalledVersion,
         compatibilityPatchPath: URL? = nil,
+        modPaths: [URL] = [],
         dataPath: URL? = nil,
         cachePath: URL? = nil,
         credentialsHelperDirectory: URL? = nil,
@@ -41,20 +42,12 @@ public struct RuntimeLauncher: @unchecked Sendable {
     ) throws {
         let executableURL = try runtimeExecutable(in: runtimePath)
         try removeShadowingRuntimeHelpers(nextTo: executableURL, from: credentialsHelperDirectory)
-        var arguments = ["--disable-fmod"]
-        if !Self.falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
-            arguments.append("-fes")
-        }
-        if let compatibilityPatchPath {
-            arguments += ["-m", compatibilityPatchPath.path]
-        }
-        if let dataPath {
-            arguments += ["-dd", dataPath.path]
-        }
-        if let cachePath {
-            arguments += ["-dc", cachePath.path]
-        }
-        arguments += ["-dg", version.installPath.path]
+        let arguments = Self.clientArguments(
+            gamePath: version.installPath,
+            modDirectories: [compatibilityPatchPath].compactMap { $0 } + modPaths,
+            dataPath: dataPath,
+            cachePath: cachePath
+        )
 
         let currentDirectoryURL = runtimeWorkingDirectory(for: executableURL, runtimePath: runtimePath)
 
@@ -116,6 +109,8 @@ public struct RuntimeLauncher: @unchecked Sendable {
         runtimePath: URL,
         version: InstalledVersion,
         compatibilityPatchPath: URL? = nil,
+        modPaths: [URL] = [],
+        environmentOverrides: [String: String] = [:],
         dataPath: URL? = nil,
         cachePath: URL? = nil,
         credentialsHelperDirectory: URL? = nil,
@@ -128,6 +123,8 @@ public struct RuntimeLauncher: @unchecked Sendable {
             runtimePath: runtimePath,
             version: version,
             compatibilityPatchPath: compatibilityPatchPath,
+            modPaths: modPaths,
+            environmentOverrides: environmentOverrides,
             dataPath: dataPath,
             cachePath: cachePath,
             credentialsHelperDirectory: credentialsHelperDirectory,
@@ -350,6 +347,8 @@ public struct RuntimeLauncher: @unchecked Sendable {
         runtimePath: URL,
         version: InstalledVersion,
         compatibilityPatchPath: URL?,
+        modPaths: [URL] = [],
+        environmentOverrides: [String: String] = [:],
         dataPath: URL?,
         cachePath: URL?,
         credentialsHelperDirectory: URL?,
@@ -357,20 +356,12 @@ public struct RuntimeLauncher: @unchecked Sendable {
     ) throws -> LaunchCommand {
         let executableURL = try runtimeExecutable(in: runtimePath)
         try removeShadowingRuntimeHelpers(nextTo: executableURL, from: credentialsHelperDirectory)
-        var arguments = ["--disable-fmod"]
-        if !Self.falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
-            arguments.append("-fes")
-        }
-        if let compatibilityPatchPath {
-            arguments += ["-m", compatibilityPatchPath.path]
-        }
-        if let dataPath {
-            arguments += ["-dd", dataPath.path]
-        }
-        if let cachePath {
-            arguments += ["-dc", cachePath.path]
-        }
-        arguments += ["-dg", version.installPath.path]
+        let arguments = Self.clientArguments(
+            gamePath: version.installPath,
+            modDirectories: [compatibilityPatchPath].compactMap { $0 } + modPaths,
+            dataPath: dataPath,
+            cachePath: cachePath
+        )
 
         let currentDirectoryURL = runtimeWorkingDirectory(for: executableURL, runtimePath: runtimePath)
 
@@ -399,6 +390,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         if let credentialFileURL {
             environment[GoogleCredentialFileTransfer.environmentKey] = credentialFileURL.path
         }
+        environment.merge(environmentOverrides) { $1 }
 
         return LaunchCommand(
             executableURL: executableURL,
@@ -420,6 +412,38 @@ public struct RuntimeLauncher: @unchecked Sendable {
                   fileManager.fileExists(atPath: destination.path) || isSymbolicLink(at: destination) else { continue }
             try fileManager.removeItem(at: destination)
         }
+    }
+
+    static func graphicsEnvironmentSummary(_ environment: [String: String]) -> String {
+        let prefixes = ["MVK_", "MTL_", "VK_", RuntimePerformanceSettings.requestedAnglePlatformKey]
+        let entries = environment
+            .filter { key, _ in prefixes.contains { key.hasPrefix($0) } }
+            .map { "\($0.key)=\($0.value)" }
+            .sorted()
+        return entries.isEmpty ? "default" : entries.joined(separator: " ")
+    }
+
+    static func clientArguments(
+        gamePath: URL,
+        modDirectories: [URL],
+        dataPath: URL?,
+        cachePath: URL?
+    ) -> [String] {
+        var arguments = ["--disable-fmod"]
+        if !falseyEnvironmentValue("MCPELAUNCHER_FORCE_FES") {
+            arguments.append("-fes")
+        }
+        if !modDirectories.isEmpty {
+            arguments += ["-m", modDirectories.map(\.path).joined(separator: ",")]
+        }
+        if let dataPath {
+            arguments += ["-dd", dataPath.path]
+        }
+        if let cachePath {
+            arguments += ["-dc", cachePath.path]
+        }
+        arguments += ["-dg", gamePath.path]
+        return arguments
     }
 
     private static func falseyEnvironmentValue(_ name: String) -> Bool {
@@ -560,6 +584,7 @@ public struct RuntimeLauncher: @unchecked Sendable {
         executable: \(command.executableURL.path)
         \(appBundleText)arguments: \(command.arguments.joined(separator: " "))
         cwd: \(command.currentDirectoryURL.path)
+        graphics: \(Self.graphicsEnvironmentSummary(command.environment))
         status: detached
 
         stdout/stderr:

@@ -233,7 +233,7 @@ extension LauncherViewModel {
             signOutLegacyCredentialIfNeeded()
             try paths.removeLegacyGooglePlayState()
             try syncRuntimeClientPreferencesFromDisk()
-            selectedVersion = try registry.load().first
+            try reloadInstalledVersions()
             refreshSelectedVersionCompatibility()
             refreshInstalledRuntimeState()
             if startsAutomaticRuntimeUpdate && LauncherPreferences.automaticallyCheckRuntimeUpdates {
@@ -248,7 +248,7 @@ extension LauncherViewModel {
         try paths.ensureDirectories()
         try paths.removeStaleGameInstallDirectories()
         try syncRuntimeClientPreferencesFromDisk()
-        selectedVersion = try registry.load().first
+        try reloadInstalledVersions()
         refreshSelectedVersionCompatibility()
         refreshInstalledRuntimeState()
     }

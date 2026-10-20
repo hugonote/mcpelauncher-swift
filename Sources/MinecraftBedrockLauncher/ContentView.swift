@@ -23,6 +23,7 @@ struct ContentView: View {
     @State var isShowingContentImportResult = false
     @State var isProcessingQueuedContentImport = false
     @Environment(\.openSettings) var openSettings
+    @Environment(\.openWindow) var openWindow
     @Environment(\.accessibilityReduceMotion) var reduceMotion
 
     var body: some View {

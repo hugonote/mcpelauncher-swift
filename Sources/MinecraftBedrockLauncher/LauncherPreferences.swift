@@ -12,6 +12,9 @@ enum LauncherPreferences {
     static let showInGameStatusBarKey = "showInGameStatusBar"
     static let fpsCounterVisibilityKey = "fpsCounterVisibility"
     static let vSyncEnabledKey = "vSyncEnabled"
+    static let selectedGameVersionKey = "selectedGameVersion"
+    static let metalHUDEnabledKey = "metalHUDEnabled"
+    static let graphicsBackendKey = "graphicsBackend"
 
     static func registerDefaults() {
         let defaults = UserDefaults.standard
@@ -26,7 +29,9 @@ enum LauncherPreferences {
             automaticallyCheckLauncherUpdatesKey: true,
             showInGameStatusBarKey: false,
             fpsCounterVisibilityKey: RuntimeHUDVisibility.off.rawValue,
-            vSyncEnabledKey: true
+            vSyncEnabledKey: true,
+            metalHUDEnabledKey: false,
+            graphicsBackendKey: RuntimeGraphicsBackend.vulkan.rawValue
         ])
 
         if !hasAutomaticInstallPreference {
@@ -72,12 +77,19 @@ enum LauncherPreferences {
 
     static var runtimeVersion: String? {
         get { UserDefaults.standard.string(forKey: runtimeVersionKey) }
-        set {
-            if let newValue {
-                UserDefaults.standard.set(newValue, forKey: runtimeVersionKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: runtimeVersionKey)
-            }
+        set { setOptionalString(newValue, forKey: runtimeVersionKey) }
+    }
+
+    static var selectedGameVersion: String? {
+        get { UserDefaults.standard.string(forKey: selectedGameVersionKey) }
+        set { setOptionalString(newValue, forKey: selectedGameVersionKey) }
+    }
+
+    private static func setOptionalString(_ value: String?, forKey key: String) {
+        if let value {
+            UserDefaults.standard.set(value, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
         }
     }
 
@@ -91,5 +103,17 @@ enum LauncherPreferences {
 
     static var vSyncEnabled: Bool {
         UserDefaults.standard.bool(forKey: vSyncEnabledKey)
+    }
+
+    static var graphicsBackend: RuntimeGraphicsBackend {
+        RuntimeGraphicsBackend(rawValue: UserDefaults.standard.integer(forKey: graphicsBackendKey)) ?? .vulkan
+    }
+
+    static func runtimePerformanceSettings(anglePlatformOverrideURL: URL?) -> RuntimePerformanceSettings {
+        RuntimePerformanceSettings(
+            showsMetalHUD: UserDefaults.standard.bool(forKey: metalHUDEnabledKey),
+            graphicsBackend: graphicsBackend,
+            anglePlatformOverrideURL: anglePlatformOverrideURL
+        )
     }
 }

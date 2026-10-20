@@ -63,8 +63,32 @@ public struct AppPaths: Equatable, Sendable {
         baseURL.appendingPathComponent("versions.json", isDirectory: false)
     }
 
+    public var modsURL: URL {
+        baseURL.appendingPathComponent("Mods", isDirectory: true)
+    }
+
+    public var installedModsURL: URL {
+        modsURL.appendingPathComponent("mods.json", isDirectory: false)
+    }
+
+    public var enabledModsURL: URL {
+        modsURL.appendingPathComponent("enabled-mods.json", isDirectory: false)
+    }
+
+    public var worldBackupsURL: URL {
+        baseURL.appendingPathComponent("WorldBackups", isDirectory: true)
+    }
+
+    public var minecraftWorldsURL: URL {
+        minecraftMojangURL.appendingPathComponent("minecraftWorlds", isDirectory: true)
+    }
+
+    public var lastLaunchedVersionURL: URL {
+        baseURL.appendingPathComponent("last-launched-version.json", isDirectory: false)
+    }
+
     public func ensureDirectories(fileManager: FileManager = .default) throws {
-        for url in [baseURL, downloadsURL, versionsURL, runtimeURL, compatibilityPatchesURL, minecraftDataURL, logsURL] {
+        for url in [baseURL, downloadsURL, versionsURL, runtimeURL, compatibilityPatchesURL, minecraftDataURL, logsURL, modsURL] {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
@@ -128,6 +152,7 @@ public enum LauncherError: Error, LocalizedError, Equatable {
     case gameLaunchFailed(status: Int32, logURL: URL?, outputTail: String)
     case unsupportedContentPack(URL)
     case contentPackImportFailed(URL, reason: String)
+    case modInstallFailed(String, reason: String)
 
     public var errorDescription: String? {
         switch self {
@@ -172,6 +197,8 @@ public enum LauncherError: Error, LocalizedError, Equatable {
             return "Unsupported Minecraft content file: \(url.lastPathComponent)."
         case .contentPackImportFailed(let url, let reason):
             return "Could not import \(url.lastPathComponent): \(reason)"
+        case .modInstallFailed(let name, let reason):
+            return "Could not install mod \(name): \(reason)"
         }
     }
 }

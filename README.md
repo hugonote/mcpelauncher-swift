@@ -65,6 +65,8 @@ Requirements:
 
 - macOS 15.6 or newer
 - Xcode 26 or newer
+- Android NDK r27 or newer, for the bundled `macos-fixes` runtime mod
+  (`ANDROID_NDK_HOME`, default `/opt/homebrew/share/android-ndk`) and CMake
 
 Run tests:
 
@@ -85,7 +87,8 @@ Scripts/build-dmg.sh
 ```
 
 The bundle script builds the launcher, helper executables, Sparkle framework,
-and app resources.
+the ANGLE platform override dylib, the `macos-fixes` runtime mod, and app
+resources.
 
 Useful release-time variables:
 

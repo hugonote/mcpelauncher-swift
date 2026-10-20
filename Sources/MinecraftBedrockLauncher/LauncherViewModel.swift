@@ -26,9 +26,13 @@ final class LauncherViewModel: ObservableObject {
     @Published var newestSupportedVersion: SupportedMinecraftVersion?
     @Published var selectedVersion: InstalledVersion? {
         didSet {
+            LauncherPreferences.selectedGameVersion = selectedVersion?.versionName
             refreshSelectedVersionCompatibility()
         }
     }
+    @Published var installedVersions: [InstalledVersion] = []
+    @Published var installingVersionName: String?
+    @Published var lastWorldBackupURL: URL?
     @Published var downloadState = DownloadState()
     @Published var runtimeState = RuntimeState()
     @Published var availableRuntimeReleases: [RuntimeRelease] = []

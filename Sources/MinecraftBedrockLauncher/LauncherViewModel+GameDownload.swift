@@ -12,6 +12,7 @@ extension LauncherViewModel {
                 try paths.deleteGameFiles()
             }
             selectedVersion = nil
+            installedVersions = []
             latestVersion = nil
             googlePlayLatestVersion = nil
             downloadState = DownloadState()
@@ -46,12 +47,21 @@ extension LauncherViewModel {
 
     @discardableResult
     func startDownloadAndInstallLatest() -> Task<Bool, Never> {
+        startDownloadAndInstall(requested: nil, selectsInstalledVersion: true)
+    }
+
+    @discardableResult
+    func startDownloadAndInstall(requested: LatestVersion?, selectsInstalledVersion: Bool) -> Task<Bool, Never> {
         let downloadID = UUID()
         activeDownloadID = downloadID
         activeDownloadTask?.cancel()
         let task = Task { [weak self] in
             guard let self else { return false }
-            let installed = await self.downloadAndInstallLatest(downloadID: downloadID)
+            let installed = await self.downloadAndInstall(
+                downloadID: downloadID,
+                requested: requested,
+                selectsInstalledVersion: selectsInstalledVersion
+            )
             if Task.isCancelled, self.activeDownloadID == downloadID {
                 self.cancelActiveDownloadWork()
             }
@@ -77,8 +87,8 @@ extension LauncherViewModel {
         guard let latestVersion else {
             return true
         }
-        if let selectedVersion,
-           selectedVersion.versionCode >= latestVersion.versionCode {
+        if let newestInstalledVersionCode,
+           newestInstalledVersionCode >= latestVersion.versionCode {
             return true
         }
 
@@ -86,7 +96,13 @@ extension LauncherViewModel {
         activeDownloadID = downloadID
         activeDownloadTask?.cancel()
         activeDownloadTask = nil
-        return await downloadAndInstallLatest(downloadID: downloadID)
+        let selectsInstalledVersion = selectedVersion == nil
+            || selectedVersion?.versionCode == newestInstalledVersionCode
+        return await downloadAndInstall(
+            downloadID: downloadID,
+            requested: nil,
+            selectsInstalledVersion: selectsInstalledVersion
+        )
     }
 
     func cancelDownload() {
@@ -143,7 +159,17 @@ extension LauncherViewModel {
         }
     }
 
-    private func downloadAndInstallLatest(downloadID: UUID) async -> Bool {
+    private func downloadAndInstall(
+        downloadID: UUID,
+        requested: LatestVersion?,
+        selectsInstalledVersion: Bool
+    ) async -> Bool {
+        installingVersionName = requested?.versionName
+        defer {
+            if activeDownloadID == nil || activeDownloadID == downloadID {
+                installingVersionName = nil
+            }
+        }
         if !canDownloadRuntime {
             await fetchLatest()
             guard activeDownloadID == downloadID, canDownloadRuntime, !Task.isCancelled else {
@@ -169,15 +195,19 @@ extension LauncherViewModel {
                 throw LauncherError.missingCredential
             }
             let downloadable: LatestVersion
-            if let knownVersion = latestVersion {
+            if let requested {
+                downloadable = requested
+            } else if let knownVersion = latestVersion {
                 downloadable = try await downloadableVersion(for: knownVersion)
+                latestVersion = downloadable
             } else {
                 downloadState = DownloadState(phase: .fetchingLatest)
                 let resolution = try await resolveDownloadableVersion(credential: credential)
                 applyVersionResolution(resolution)
                 downloadable = resolution.downloadable
+                latestVersion = downloadable
             }
-            latestVersion = downloadable
+            installingVersionName = downloadable.versionName
 
             downloadState = DownloadState(
                 versionName: downloadable.versionName,
@@ -260,9 +290,12 @@ extension LauncherViewModel {
                 detail: "Preparing first launch",
                 captureLog: false
             )
-            try removeObsoleteMinecraftFiles(keeping: installed)
-            try registry.save([installed])
-            selectedVersion = installed
+            try registry.upsert(installed)
+            try removeUnregisteredMinecraftFiles()
+            if selectsInstalledVersion || selectedVersion == nil {
+                selectedVersion = installed
+            }
+            try reloadInstalledVersions()
             refreshSelectedVersionCompatibility()
             activeDownloadID = nil
             activeDownloadOutputURL = nil
@@ -428,18 +461,9 @@ extension LauncherViewModel {
         }
     }
 
-    private func removeObsoleteMinecraftFiles(keeping installed: InstalledVersion) throws {
+    private func removeUnregisteredMinecraftFiles() throws {
         let fileManager = FileManager.default
-        let currentInstallPath = installed.installPath.standardizedFileURL.path
-
-        let existingVersions = try registry.load()
-        for version in existingVersions {
-            let path = version.installPath.standardizedFileURL.path
-            guard path != currentInstallPath, fileManager.fileExists(atPath: path) else {
-                continue
-            }
-            try fileManager.removeItem(at: version.installPath)
-        }
+        let registeredInstallPaths = Set(try registry.load().map { $0.installPath.standardizedFileURL.path })
 
         if fileManager.fileExists(atPath: paths.versionsURL.path) {
             let versionDirectories = try fileManager.contentsOfDirectory(
@@ -450,7 +474,7 @@ extension LauncherViewModel {
             for directory in versionDirectories {
                 let values = try directory.resourceValues(forKeys: [.isDirectoryKey])
                 guard values.isDirectory == true,
-                      directory.standardizedFileURL.path != currentInstallPath,
+                      !registeredInstallPaths.contains(directory.standardizedFileURL.path),
                       !directory.lastPathComponent.hasPrefix(".install-") else {
                     continue
                 }

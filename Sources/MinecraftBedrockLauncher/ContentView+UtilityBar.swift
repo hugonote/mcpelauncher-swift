@@ -7,6 +7,22 @@ extension ContentView {
             Spacer()
 
             Button {
+                openWindow(id: LauncherWindowID.versions)
+            } label: {
+                Image(systemName: "square.stack.3d.up")
+            }
+            .buttonStyle(.borderless)
+            .help("Versions")
+
+            Button {
+                openWindow(id: LauncherWindowID.mods)
+            } label: {
+                Image(systemName: "puzzlepiece.extension")
+            }
+            .buttonStyle(.borderless)
+            .help("Mods")
+
+            Button {
                 presentContentImportPanel()
             } label: {
                 Image(systemName: "arrow.down.app.dashed")
